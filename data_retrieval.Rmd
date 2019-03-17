@@ -1,0 +1,62 @@
+---
+title: "data retrieval"
+params:
+  seed: 1
+author: "Izaskun Mallona"
+output:
+  html_document:
+    keep_md: false
+    toc: true
+    toc_float: true
+    toc_depth: 4
+
+---
+
+```{r libraries}
+suppressPackageStartupMessages(library(knitr))
+suppressPackageStartupMessages(library(curatedTCGAData))
+suppressPackageStartupMessages(library(MultiAssayExperiment))
+suppressPackageStartupMessages(library(RaggedExperiment))
+suppressPackageStartupMessages(library(ExperimentHub))
+suppressPackageStartupMessages(library(devtools))
+## library(biomaRt)
+suppressPackageStartupMessages(library(IlluminaHumanMethylation450kanno.ilmn12.hg19))
+suppressPackageStartupMessages(library(stringr))
+```
+
+# Data retrieval example
+
+Please compile with `rmarkdown::render('data_retrieval.Rmd')`.
+
+```{r curated_tests}
+curatedTCGAData(diseaseCode = "*", assays = "*", dry.run = TRUE)
+curatedTCGAData(diseaseCode = "COAD", assays = "*", dry.run = TRUE)
+curatedTCGAData(diseaseCode = "COAD", assays = "*Methylation*", dry.run = TRUE)
+```
+
+```{r coad}
+
+## does the methylation retrieval work?
+coad <- curatedTCGAData(diseaseCode = "COAD",
+                        assays = c("RNASeq2GeneNorm",
+                                   "Mutation",
+                                   "*Methylation*"),
+                        dry.run = FALSE)
+
+
+table(colData(coad)$MSI_status)
+grep('gender', colnames(colData(coad)), value = TRUE)
+table(colData(coad)$gender.x,  useNA = 'always')
+table(colData(coad)$gender.y, useNA = 'always')
+table(colData(coad)$patient.gender,  useNA = 'always')
+table(toupper(colData(coad)$gender.y) == toupper(colData(coad)$patient.gender))
+
+```
+
+
+# Session
+
+```{r sessionInfo, cache = FALSE}
+date()
+devtools::session_info()
+```
