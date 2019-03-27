@@ -1,0 +1,189 @@
+---
+title: "Retrival Data"
+author: "Lorena Ponce Ruiz"
+date: '`r format(Sys.Date(),"%e, %B, %Y")`'
+lang: es
+output: 
+  html_document:
+    keep_md: false
+    toc: true
+    toc_float: true
+    toc_depth: 4
+---
+
+```{r}
+setwd("D:/Escritorio/Epigeneticas-cancer code")
+```
+
+
+```{r librerias, include=FALSE}
+suppressPackageStartupMessages(library(knitr))
+suppressPackageStartupMessages(library(curatedTCGAData))
+suppressPackageStartupMessages(library(TCGAbiolinks))
+suppressPackageStartupMessages(library(MultiAssayExperiment))
+suppressPackageStartupMessages(library(RaggedExperiment))
+suppressPackageStartupMessages(library(ExperimentHub))
+suppressPackageStartupMessages(library(devtools))
+## library(biomaRt)
+suppressPackageStartupMessages(library(IlluminaHumanMethylation450kanno.ilmn12.hg19))
+suppressPackageStartupMessages(library(stringr))
+```
+
+Download methylation 450K dataset for: 
+
+```{r commonBarcodes_func}
+# Function to filter tumor and normal barcodes and get which share tss and participant, finally we get a list of 100 barcodes (50 normal and 50 tumorous) selected radomly
+
+commonBarcodes <- function(query, n){
+  results <- getResults(query, cols = c("cases", "tissue.definition"))
+  ids_tumor <- results$cases[which(results$tissue.definition == "Primary solid Tumor")]
+  ids_normal <- results$cases[which(results$tissue.definition == "Solid Tissue Normal")]
+  
+  # Get 50 random common barcodes from normal and tumoral samples 
+  common <- sample(intersect(strtrim(ids_tumor, 12), strtrim(ids_normal, 12)), n)
+  
+  # Get position of common barcodes in ids variable
+  position_normal <- list()
+  position_tumor <- list()
+  i <- 1
+  for (char in common) {
+    position_tumor[[i]] <- which(startsWith(ids_tumor,  char))[1] 
+    position_normal[[i]] <- which(startsWith(ids_normal,  char))[1]
+    i <- i+1
+  }
+  
+  # Get the barcodes to extract
+  barcode_normal <- list()
+  j <- 1
+  for(pos1 in position_normal){
+    barcode_normal[j] <- ids_normal[pos1]
+    j <- j+1
+  }
+  
+  barcode_tumor <- list()
+  z <- 1
+  for(pos2 in position_tumor){
+    barcode_tumor[z] <- ids_tumor[pos2]
+    z <- z+1
+    }
+  
+  barcode_tumor <- sample(barcode_tumor, n)
+  barcodes <- append(barcode_tumor, barcode_normal)
+  return(barcodes)
+}
+```
+
+1. COAD (colon cancer)
+```{r}
+query.met.coad <- GDCquery(project = "TCGA-COAD",
+                          legacy = FALSE,
+                          data.category = "DNA methylation",
+                          platform = "Illumina Human Methylation 450",
+                          barcode = "*",
+                          sample.type = c("Primary solid Tumor", "Solid Tissue Normal"))
+GDCdownload(query.met.coad)
+met.coad.450 <- GDCprepare(query = query.met.coad,
+                         save = TRUE,
+                         save.filename = "coadDNAmet450k.rda" ,
+                         summarizedExperiment = TRUE)
+```
+
+2. BRCA (breast cancer)
+```{r}
+query.met.brca <- GDCquery(project = "TCGA-BRCA",
+                          legacy = FALSE,
+                          data.category = "DNA Methylation",
+                          platform = "Illumina Human Methylation 450",
+                          sample.type = c("Primary solid Tumor", "Solid Tissue Normal"))
+
+barcodes.brca <- commonBarcodes(query.met.brca, 50)
+
+query.met.brca2 <- GDCquery(project = "TCGA-BRCA",
+                          legacy = FALSE,
+                          data.category = "DNA Methylation",
+                          platform = "Illumina Human Methylation 450",
+                          sample.type = c("Primary solid Tumor", "Solid Tissue Normal"),
+                          barcode = barcodes.brca)
+
+GDCdownload(query.met.brca2)
+met.brca.450 <- GDCprepare(query = query.met.brca2,
+                         save = TRUE,
+                         save.filename = "brcaDNAmet450k.rda" ,
+                         summarizedExperiment = TRUE)
+```
+
+3. LUAD (lung cancer)
+```{r}
+query.met.luad <- GDCquery(project = "TCGA-LUAD",
+                          legacy = FALSE,
+                          data.category = "DNA Methylation",
+                          platform = "Illumina Human Methylation 450",
+                          sample.type = c("Primary solid Tumor", "Solid Tissue Normal"))
+
+barcodes.luad <- commonBarcodes(query.met.luad, 25)
+
+query.met.luad2 <- GDCquery(project = "TCGA-LUAD",
+                          legacy = FALSE,
+                          data.category = "DNA Methylation",
+                          platform = "Illumina Human Methylation 450",
+                          sample.type = c("Primary solid Tumor", "Solid Tissue Normal"),
+                          barcode = barcodes.luad)
+
+GDCdownload(query.met.luad2)
+
+met.luad.450 <- GDCprepare(query = query.met.luad2,
+                         save = TRUE,
+                         save.filename = "luadDNAmet450k.rda" ,
+                         summarizedExperiment = TRUE)
+
+```
+
+4. PRAD (prostate cancer)
+```{r}
+query.met.prad <- GDCquery(project = "TCGA-PRAD",
+                          legacy = FALSE,
+                          data.category = "DNA Methylation",
+                          platform = "Illumina Human Methylation 450",
+                          sample.type = c("Primary solid Tumor", "Solid Tissue Normal"))
+
+barcodes.prad <- commonBarcodes(query.met.prad, 50)
+
+query.met.prad2 <- GDCquery(project = "TCGA-PRAD",
+                          legacy = FALSE,
+                          data.category = "DNA Methylation",
+                          platform = "Illumina Human Methylation 450",
+                          sample.type = c("Primary solid Tumor", "Solid Tissue Normal"),
+                          barcode = barcodes.prad)
+
+GDCdownload(query.met.prad2)
+
+met.prad.450 <- GDCprepare(query = query.met.prad2,
+                         save = TRUE,
+                         save.filename = "pradDNAmet450k.rda" ,
+                         summarizedExperiment = TRUE)
+```
+
+Download mutation and RNA (normalized) datasets from TCGA with curatedTCGAData package:
+```{r}
+coad <- curatedTCGAData(diseaseCode = "COAD",
+                        assays = c("RNASeq2GeneNorm",
+                                   "Mutation"),
+                        dry.run = FALSE)
+
+brca <- curatedTCGAData(diseaseCode = "BRCA",
+                        assays = c("RNASeq2GeneNorm",
+                                   "Mutation"),
+                        dry.run = FALSE)
+
+luad <- curatedTCGAData(diseaseCode = "LUAD",
+                        assays = c("RNASeq2GeneNorm",
+                                   "Mutation"),
+                        dry.run = FALSE)
+
+prad <- curatedTCGAData(diseaseCode = "PRAD",
+                        assays = c("RNASeq2GeneNorm",
+                                   "Mutation"),
+                        dry.run = FALSE)
+```
+
+
