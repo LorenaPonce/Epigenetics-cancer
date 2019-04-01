@@ -12,7 +12,10 @@ output:
     code_download: true
 ---
 
-```{r}
+
+```{r, eval = FALSE}
+## I'd suggest removing this because it's a bad practice to assume the path exists
+##  in a different setting (user/computer/operating system)
 setwd("D:/Escritorio/Epigenetics-cancer code")
 ```
 
@@ -215,7 +218,7 @@ query.exp.brca <- GDCquery(project = brca,
 
 GDCdownload(query.exp.brca)
 
-exp.coad <- GDCprepare(query = query.exp.brca,
+exp.brca <- GDCprepare(query = query.exp.brca,
                       save = TRUE,
                       save.filename = "brcaRNAseq.rda" ,
                       summarizedExperiment = TRUE)
@@ -236,7 +239,7 @@ query.exp.luad <- GDCquery(project = luad,
 
 GDCdownload(query.exp.luad)
 
-exp.coad <- GDCprepare(query = query.exp.luad,
+exp.luad <- GDCprepare(query = query.exp.luad,
                       save = TRUE,
                       save.filename = "luadRNAseq.rda" ,
                       summarizedExperiment = TRUE)
@@ -256,7 +259,7 @@ query.exp.prad <- GDCquery(project = prad,
 
 GDCdownload(query.exp.prad)
 
-exp.coad <- GDCprepare(query = query.exp.prad,
+exp.prad <- GDCprepare(query = query.exp.prad,
                       save = TRUE,
                       save.filename = "pradRNAseq.rda",
                       summarizedExperiment = TRUE)
