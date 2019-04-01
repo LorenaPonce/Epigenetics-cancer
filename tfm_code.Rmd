@@ -1,5 +1,5 @@
 ---
-title: "Retrival Data"
+title: "TFM-code"
 author: "Lorena Ponce Ruiz"
 date: '`r format(Sys.Date(),"%e, %B, %Y")`'
 lang: es
@@ -9,122 +9,136 @@ output:
     toc: true
     toc_float: true
     toc_depth: 4
+    code_download: true
 ---
 
 ```{r}
-setwd("D:/Escritorio/Epigeneticas-cancer code")
+setwd("D:/Escritorio/Epigenetics-cancer code")
 ```
 
 
-```{r librerias, include=FALSE}
+```{r Rpackages, include=FALSE}
 suppressPackageStartupMessages(library(knitr))
 suppressPackageStartupMessages(library(curatedTCGAData))
 suppressPackageStartupMessages(library(TCGAbiolinks))
-suppressPackageStartupMessages(library(MultiAssayExperiment))
-suppressPackageStartupMessages(library(RaggedExperiment))
-suppressPackageStartupMessages(library(ExperimentHub))
+#suppressPackageStartupMessages(library(MultiAssayExperiment))
+#suppressPackageStartupMessages(library(RaggedExperiment))
+#suppressPackageStartupMessages(library(ExperimentHub))
 suppressPackageStartupMessages(library(devtools))
 ## library(biomaRt)
 suppressPackageStartupMessages(library(IlluminaHumanMethylation450kanno.ilmn12.hg19))
 suppressPackageStartupMessages(library(stringr))
 ```
 
-Download methylation 450K dataset for: 
+```{r constants, cache=FALSE}
+NUM_PATIENTS <- 50
+```
 
-```{r commonBarcodes_func}
-# Function to filter tumor and normal barcodes and get which share tss and participant, finally we get a list of 100 barcodes (50 normal and 50 tumorous) selected radomly
+```{r commonBarcodes_func, cache=FALSE}
+##' it samples the patients, if the cohort has more than n patients with matched primary tumor and normal
+##' @title 
+##' @param project the name of the TCGA project
+##' @param query a GDC query result
+##' @param n the number of patients to sample
+##' @return a named list with all the barcodes for primary tumors and normals, max size 2n
+##' @author Lorena Ponce
 
-commonBarcodes <- function(query, n){
+commonBarcodes <- function(project, query, n){
+  samplesMetExp <- matchedMetExp(project, legacy = TRUE)
   results <- getResults(query, cols = c("cases", "tissue.definition"))
   ids_tumor <- results$cases[which(results$tissue.definition == "Primary solid Tumor")]
   ids_normal <- results$cases[which(results$tissue.definition == "Solid Tissue Normal")]
   
-  # Get 50 random common barcodes from normal and tumoral samples 
-  common <- sample(intersect(strtrim(ids_tumor, 12), strtrim(ids_normal, 12)), n)
+  common <- intersect(strtrim(ids_tumor, 12), strtrim(ids_normal, 12))
+  commonMetExp <- intersect(strtrim(common, 12), strtrim(samplesMetExp, 12))
   
-  # Get position of common barcodes in ids variable
-  position_normal <- list()
-  position_tumor <- list()
-  i <- 1
-  for (char in common) {
-    position_tumor[[i]] <- which(startsWith(ids_tumor,  char))[1] 
-    position_normal[[i]] <- which(startsWith(ids_normal,  char))[1]
-    i <- i+1
+  ## sampling to n patients, if getting more than those
+  if (n < length(commonMetExp)) {
+    set.seed(1)
+    commonMetExp <- sample(commonMetExp, n)
   }
   
-  # Get the barcodes to extract
-  barcode_normal <- list()
-  j <- 1
-  for(pos1 in position_normal){
-    barcode_normal[j] <- ids_normal[pos1]
-    j <- j+1
-  }
-  
-  barcode_tumor <- list()
-  z <- 1
-  for(pos2 in position_tumor){
-    barcode_tumor[z] <- ids_tumor[pos2]
-    z <- z+1
-    }
-  
-  barcode_tumor <- sample(barcode_tumor, n)
-  barcodes <- append(barcode_tumor, barcode_normal)
+  named_tumors <- ids_tumor
+  names(named_tumors) <- strtrim(ids_tumor, 12)
+  named_normals <- ids_normal
+  names(named_normals) <- strtrim(ids_normal, 12)
+  barcodes <- as.list(c(named_tumors[commonMetExp], named_normals[commonMetExp]))
   return(barcodes)
 }
 ```
 
-1. COAD (colon cancer)
-```{r}
-query.met.coad <- GDCquery(project = "TCGA-COAD",
-                          legacy = FALSE,
+
+# Download methylation 450K dataset for: 
+
+## COAD (colon cancer)
+```{r met.coad}
+coad <- "TCGA-COAD"
+
+query.met.coad <- GDCquery(project = coad,
+                          legacy = TRUE,
                           data.category = "DNA methylation",
                           platform = "Illumina Human Methylation 450",
-                          barcode = "*",
                           sample.type = c("Primary solid Tumor", "Solid Tissue Normal"))
-GDCdownload(query.met.coad)
-met.coad.450 <- GDCprepare(query = query.met.coad,
+
+barcodes.coad <- commonBarcodes(coad, query.met.coad, NUM_PATIENTS)
+
+query.met.coad2 <- GDCquery(project = coad,
+                          legacy = TRUE,
+                          data.category = "DNA methylation",
+                          platform = "Illumina Human Methylation 450",
+                          sample.type = c("Primary solid Tumor", "Solid Tissue Normal"),
+                          barcode = barcodes.coad)
+
+GDCdownload(query.met.coad2)
+
+met.coad.450 <- GDCprepare(query = query.met.coad2,
                          save = TRUE,
                          save.filename = "coadDNAmet450k.rda" ,
                          summarizedExperiment = TRUE)
 ```
 
-2. BRCA (breast cancer)
-```{r}
-query.met.brca <- GDCquery(project = "TCGA-BRCA",
-                          legacy = FALSE,
-                          data.category = "DNA Methylation",
+## BRCA (breast cancer)
+```{r met.brca}
+brca <- "TCGA-BRCA"
+
+query.met.brca <- GDCquery(project = brca,
+                          legacy = TRUE,
+                          data.category = "DNA methylation",
                           platform = "Illumina Human Methylation 450",
                           sample.type = c("Primary solid Tumor", "Solid Tissue Normal"))
 
-barcodes.brca <- commonBarcodes(query.met.brca, 50)
+barcodes.brca <- commonBarcodes(brca, query.met.brca, NUM_PATIENTS)
 
-query.met.brca2 <- GDCquery(project = "TCGA-BRCA",
-                          legacy = FALSE,
-                          data.category = "DNA Methylation",
+query.met.brca2 <- GDCquery(project = brca,
+                          legacy = TRUE,
+                          data.category = "DNA methylation",
                           platform = "Illumina Human Methylation 450",
                           sample.type = c("Primary solid Tumor", "Solid Tissue Normal"),
                           barcode = barcodes.brca)
 
 GDCdownload(query.met.brca2)
+
 met.brca.450 <- GDCprepare(query = query.met.brca2,
                          save = TRUE,
                          save.filename = "brcaDNAmet450k.rda" ,
                          summarizedExperiment = TRUE)
 ```
 
-3. LUAD (lung cancer)
-```{r}
-query.met.luad <- GDCquery(project = "TCGA-LUAD",
-                          legacy = FALSE,
-                          data.category = "DNA Methylation",
+## LUAD (lung cancer)
+```{r met.luad}
+luad <- "TCGA-LUAD"
+
+query.met.luad <- GDCquery(project = luad,
+                          legacy = TRUE,
+                          data.category = "DNA methylation",
                           platform = "Illumina Human Methylation 450",
                           sample.type = c("Primary solid Tumor", "Solid Tissue Normal"))
 
-barcodes.luad <- commonBarcodes(query.met.luad, 25)
+barcodes.luad <- commonBarcodes(luad, query.met.luad, NUM_PATIENTS)
 
-query.met.luad2 <- GDCquery(project = "TCGA-LUAD",
-                          legacy = FALSE,
-                          data.category = "DNA Methylation",
+query.met.luad2 <- GDCquery(project = luad,
+                          legacy = TRUE,
+                          data.category = "DNA methylation",
                           platform = "Illumina Human Methylation 450",
                           sample.type = c("Primary solid Tumor", "Solid Tissue Normal"),
                           barcode = barcodes.luad)
@@ -138,19 +152,21 @@ met.luad.450 <- GDCprepare(query = query.met.luad2,
 
 ```
 
-4. PRAD (prostate cancer)
-```{r}
-query.met.prad <- GDCquery(project = "TCGA-PRAD",
-                          legacy = FALSE,
-                          data.category = "DNA Methylation",
+## PRAD (prostate cancer)
+```{r met.prad}
+prad <- "TCGA-PRAD"
+
+query.met.prad <- GDCquery(project = prad,
+                          legacy = TRUE,
+                          data.category = "DNA methylation",
                           platform = "Illumina Human Methylation 450",
                           sample.type = c("Primary solid Tumor", "Solid Tissue Normal"))
 
-barcodes.prad <- commonBarcodes(query.met.prad, 50)
+barcodes.prad <- commonBarcodes(prad, query.met.prad, NUM_PATIENTS)
 
-query.met.prad2 <- GDCquery(project = "TCGA-PRAD",
-                          legacy = FALSE,
-                          data.category = "DNA Methylation",
+query.met.prad2 <- GDCquery(project = prad,
+                          legacy = TRUE,
+                          data.category = "DNA methylation",
                           platform = "Illumina Human Methylation 450",
                           sample.type = c("Primary solid Tumor", "Solid Tissue Normal"),
                           barcode = barcodes.prad)
@@ -163,27 +179,201 @@ met.prad.450 <- GDCprepare(query = query.met.prad2,
                          summarizedExperiment = TRUE)
 ```
 
-Download mutation and RNA (normalized) datasets from TCGA with curatedTCGAData package:
-```{r}
-coad <- curatedTCGAData(diseaseCode = "COAD",
-                        assays = c("RNASeq2GeneNorm",
-                                   "Mutation"),
-                        dry.run = FALSE)
 
-brca <- curatedTCGAData(diseaseCode = "BRCA",
-                        assays = c("RNASeq2GeneNorm",
-                                   "Mutation"),
-                        dry.run = FALSE)
+# Download gene expression (normalized) datasets for:
 
-luad <- curatedTCGAData(diseaseCode = "LUAD",
-                        assays = c("RNASeq2GeneNorm",
-                                   "Mutation"),
-                        dry.run = FALSE)
+## COAD
+```{r exp.coad}
+query.exp.coad <- GDCquery(project = coad, 
+                      legacy = TRUE,
+                      data.category = "Gene expression",
+                      data.type = "Gene expression quantification",
+                      platform = "Illumina HiSeq", 
+                      file.type = "normalized_results",
+                      sample.type = c("Primary solid Tumor", "Solid Tissue Normal"),
+                      barcode = strtrim(barcodes.coad, 12))
 
-prad <- curatedTCGAData(diseaseCode = "PRAD",
-                        assays = c("RNASeq2GeneNorm",
-                                   "Mutation"),
-                        dry.run = FALSE)
+GDCdownload(query.exp.coad)
+
+exp.coad <- GDCprepare(query = query.exp.coad,
+                      save = TRUE,
+                      save.filename = "coadRNAseq.rda" ,
+                      summarizedExperiment = TRUE)
+```
+
+
+## BRCA
+```{r exp.brca}
+query.exp.brca <- GDCquery(project = brca, 
+                      legacy = TRUE,
+                      data.category = "Gene expression",
+                      data.type = "Gene expression quantification",
+                      platform = "Illumina HiSeq", 
+                      file.type = "normalized_results",
+                      sample.type = c("Primary solid Tumor", "Solid Tissue Normal"),
+                      barcode = strtrim(barcodes.brca, 12))
+
+GDCdownload(query.exp.brca)
+
+exp.coad <- GDCprepare(query = query.exp.brca,
+                      save = TRUE,
+                      save.filename = "brcaRNAseq.rda" ,
+                      summarizedExperiment = TRUE)
+```
+
+
+
+## LUAD
+```{r exp.luad}
+query.exp.luad <- GDCquery(project = luad, 
+                      legacy = TRUE,
+                      data.category = "Gene expression",
+                      data.type = "Gene expression quantification",
+                      platform = "Illumina HiSeq", 
+                      file.type = "normalized_results",
+                      sample.type = c("Primary solid Tumor", "Solid Tissue Normal"),
+                      barcode = strtrim(barcodes.luad, 12))
+
+GDCdownload(query.exp.luad)
+
+exp.coad <- GDCprepare(query = query.exp.luad,
+                      save = TRUE,
+                      save.filename = "luadRNAseq.rda" ,
+                      summarizedExperiment = TRUE)
+```
+
+
+## PRAD
+```{r exp.prad}
+query.exp.prad <- GDCquery(project = prad, 
+                      legacy = TRUE,
+                      data.category = "Gene expression",
+                      data.type = "Gene expression quantification",
+                      platform = "Illumina HiSeq", 
+                      file.type = "normalized_results",
+                      sample.type = c("Primary solid Tumor", "Solid Tissue Normal"),
+                      barcode = strtrim(barcodes.prad, 12))
+
+GDCdownload(query.exp.prad)
+
+exp.coad <- GDCprepare(query = query.exp.prad,
+                      save = TRUE,
+                      save.filename = "pradRNAseq.rda",
+                      summarizedExperiment = TRUE)
+```
+
+# Download mutations dataset with MAF format:
+
+```{r mutation.download}
+## for cOAD
+query.mut.coad  <- GDCquery(project = coad, 
+                            data.category = "Simple nucleotide variation", 
+                            data.type = "Simple somatic mutation",
+                            sample.type = "Primary solid Tumor",
+                            legacy = TRUE)
+GDCdownload(query.mut.coad)
+maf.coad <- GDCprepare(query.mut.coad,
+                      save = TRUE,
+                      save.filename = "coadMut.rda")
+
+## for BRCA
+query.mut.brca  <- GDCquery(project = brca, 
+                            data.category = "Simple nucleotide variation", 
+                            data.type = "Simple somatic mutation",
+                            sample.type = "Primary solid Tumor",
+                            legacy = TRUE)
+GDCdownload(query.mut.brca)
+maf.brca <- GDCprepare(query.mut.brca,
+                      save = TRUE,
+                      save.filename = "brcaMut.rda")
+
+## for LUAD
+query.mut.luad  <- GDCquery(project = luad, 
+                            data.category = "Simple nucleotide variation", 
+                            data.type = "Simple somatic mutation",
+                            sample.type = "Primary solid Tumor",
+                            legacy = TRUE)
+GDCdownload(query.mut.luad)
+maf.luad <- GDCprepare(query.mut.luad,
+                      save = TRUE,
+                      save.filename = "luadMut.rda")
+
+## for PRAD
+query.mut.prad  <- GDCquery(project = prad, 
+                            data.category = "Simple nucleotide variation", 
+                            data.type = "Simple somatic mutation",
+                            sample.type = "Primary solid Tumor",
+                            legacy = TRUE)
+GDCdownload(query.mut.prad)
+maf.prad <- GDCprepare(query.mut.prad,
+                      save = TRUE,
+                      save.filename = "pradMut.rda")
+```
+
+
+# Download clinical data from samples downloaded:
+
+```{r clinical.download}
+## for COAD
+query.clinic.coad <- GDCquery(project = coad, 
+                  data.category = "Clinical",
+                  data.type = "Clinical data",
+                  legacy = TRUE,
+                  file.type = "xml",
+                  barcode = strtrim(barcodes.coad, 12)) 
+
+GDCdownload(query.clinic.coad)
+
+clinical.coad <- GDCprepare_clinic(query.clinic.coad, clinical.info ="patient")
+
+## for BRCA
+query.clinic.brca <- GDCquery(project = brca, 
+                  data.category = "Clinical",
+                  data.type = "Clinical data",
+                  legacy = TRUE,
+                  file.type = "xml",
+                  barcode = strtrim(barcodes.brca, 12)) 
+
+GDCdownload(query.clinic.brca)
+
+clinical.brca <- GDCprepare_clinic(query.clinic.brca,
+                                      save = TRUE,
+                                      save.filename = "brcaClinic.rda")
+
+## for LUAD
+query.clinic.luad <- GDCquery(project = luad, 
+                  data.category = "Clinical",
+                  data.type = "Clinical data",
+                  legacy = TRUE,
+                  file.type = "xml",
+                  barcode = strtrim(barcodes.luad, 12)) 
+
+GDCdownload(query.clinic.luad)
+
+clinical.luad <- GDCprepare_clinic(query.clinic.luad,
+                                      save = TRUE,
+                                      save.filename = "luadClinic.rda")
+
+## for PRAD
+query.clinic.prad <- GDCquery(project = prad, 
+                  data.category = "Clinical",
+                  data.type = "Clinical data",
+                  legacy = TRUE,
+                  file.type = "xml",
+                  barcode = strtrim(barcodes.prad, 12)) 
+
+GDCdownload(query.clinic.prad)
+
+clinical.prad <- GDCprepare_clinic(query.clinic.prad,
+                                      save = TRUE,
+                                      save.filename = "pradClinic.rda")
+```
+
+
+# Session
+
+```{r sessionInfo, cache = FALSE}
+devtools::session_info()
 ```
 
 
