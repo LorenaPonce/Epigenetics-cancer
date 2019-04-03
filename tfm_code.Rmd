@@ -18,16 +18,18 @@ setwd("D:/Escritorio/Epigenetics-cancer code")
 
 
 ```{r Rpackages, include=FALSE}
+#BiocManager::install("maftools", version = "3.8")
 suppressPackageStartupMessages(library(knitr))
 suppressPackageStartupMessages(library(curatedTCGAData))
 suppressPackageStartupMessages(library(TCGAbiolinks))
-#suppressPackageStartupMessages(library(MultiAssayExperiment))
+suppressPackageStartupMessages(library(MultiAssayExperiment))
 #suppressPackageStartupMessages(library(RaggedExperiment))
 #suppressPackageStartupMessages(library(ExperimentHub))
 suppressPackageStartupMessages(library(devtools))
 ## library(biomaRt)
 suppressPackageStartupMessages(library(IlluminaHumanMethylation450kanno.ilmn12.hg19))
 suppressPackageStartupMessages(library(stringr))
+suppressPackageStartupMessages(library(maftools))
 ```
 
 ```{r constants, cache=FALSE}
@@ -210,12 +212,12 @@ query.exp.brca <- GDCquery(project = brca,
                       data.type = "Gene expression quantification",
                       platform = "Illumina HiSeq", 
                       file.type = "normalized_results",
-                      sample.type = c("Primary solid Tumor", "Solid Tissue Normal"),
-                      barcode = strtrim(barcodes.brca, 12))
+                      sample.type = c("Primary solid Tumor", "Solid Tissue Normal"))
 
+#unique(strtrim(barcodes.brca, 12))
 GDCdownload(query.exp.brca)
 
-exp.coad <- GDCprepare(query = query.exp.brca,
+exp.brca <- GDCprepare(query = query.exp.brca,
                       save = TRUE,
                       save.filename = "brcaRNAseq.rda" ,
                       summarizedExperiment = TRUE)
@@ -236,7 +238,7 @@ query.exp.luad <- GDCquery(project = luad,
 
 GDCdownload(query.exp.luad)
 
-exp.coad <- GDCprepare(query = query.exp.luad,
+exp.luad <- GDCprepare(query = query.exp.luad,
                       save = TRUE,
                       save.filename = "luadRNAseq.rda" ,
                       summarizedExperiment = TRUE)
@@ -256,7 +258,7 @@ query.exp.prad <- GDCquery(project = prad,
 
 GDCdownload(query.exp.prad)
 
-exp.coad <- GDCprepare(query = query.exp.prad,
+exp.prad <- GDCprepare(query = query.exp.prad,
                       save = TRUE,
                       save.filename = "pradRNAseq.rda",
                       summarizedExperiment = TRUE)
@@ -276,12 +278,18 @@ maf.coad <- GDCprepare(query.mut.coad,
                       save = TRUE,
                       save.filename = "coadMut.rda")
 
+coad <- curatedTCGAData(diseaseCode = "COAD",
+                        assays = "Mutation",
+                        dry.run = FALSE)
+
 ## for BRCA
 query.mut.brca  <- GDCquery(project = brca, 
                             data.category = "Simple nucleotide variation", 
                             data.type = "Simple somatic mutation",
                             sample.type = "Primary solid Tumor",
+                            file.type = "gsc_BRCA_pairs.aggregated.capture.tcga.uuid.automated.somatic.maf",
                             legacy = TRUE)
+
 GDCdownload(query.mut.brca)
 maf.brca <- GDCprepare(query.mut.brca,
                       save = TRUE,
@@ -291,12 +299,16 @@ maf.brca <- GDCprepare(query.mut.brca,
 query.mut.luad  <- GDCquery(project = luad, 
                             data.category = "Simple nucleotide variation", 
                             data.type = "Simple somatic mutation",
-                            sample.type = "Primary solid Tumor",
+                            #sample.type = "Primary solid Tumor",
                             legacy = TRUE)
 GDCdownload(query.mut.luad)
 maf.luad <- GDCprepare(query.mut.luad,
                       save = TRUE,
                       save.filename = "luadMut.rda")
+
+luad <- curatedTCGAData(diseaseCode = "LUAD",
+                        assays = "Mutation",
+                        dry.run = FALSE)
 
 ## for PRAD
 query.mut.prad  <- GDCquery(project = prad, 
@@ -308,6 +320,10 @@ GDCdownload(query.mut.prad)
 maf.prad <- GDCprepare(query.mut.prad,
                       save = TRUE,
                       save.filename = "pradMut.rda")
+
+prad <- curatedTCGAData(diseaseCode = "PRAD",
+                        assays = "Mutation",
+                        dry.run = FALSE)
 ```
 
 
@@ -324,7 +340,9 @@ query.clinic.coad <- GDCquery(project = coad,
 
 GDCdownload(query.clinic.coad)
 
-clinical.coad <- GDCprepare_clinic(query.clinic.coad, clinical.info ="patient")
+clinical.coad <- GDCprepare(query.clinic.coad,
+                                      save = TRUE,
+                                      save.filename = "brcaClinic.rda")
 
 ## for BRCA
 query.clinic.brca <- GDCquery(project = brca, 
@@ -336,7 +354,7 @@ query.clinic.brca <- GDCquery(project = brca,
 
 GDCdownload(query.clinic.brca)
 
-clinical.brca <- GDCprepare_clinic(query.clinic.brca,
+clinical.brca <- GDCprepare(query.clinic.brca,
                                       save = TRUE,
                                       save.filename = "brcaClinic.rda")
 
@@ -350,7 +368,7 @@ query.clinic.luad <- GDCquery(project = luad,
 
 GDCdownload(query.clinic.luad)
 
-clinical.luad <- GDCprepare_clinic(query.clinic.luad,
+clinical.luad <- GDCprepare(query.clinic.luad,
                                       save = TRUE,
                                       save.filename = "luadClinic.rda")
 
@@ -364,10 +382,56 @@ query.clinic.prad <- GDCquery(project = prad,
 
 GDCdownload(query.clinic.prad)
 
-clinical.prad <- GDCprepare_clinic(query.clinic.prad,
+clinical.prad <- GDCprepare(query.clinic.prad,
                                       save = TRUE,
                                       save.filename = "pradClinic.rda")
 ```
+
+
+```{r}
+## Check if the mutation and metilation barcodes match
+## LUAD with curatedTCGAData
+luad.map<- sampleMap(luad)
+length(which(strtrim(barcodes.luad, 15) %in% strtrim(luad.map$colname, 15))
+)
+
+##COAD
+#with TCGABiolinks
+length(which(strtrim(barcodes.coad, 15) %in% strtrim(maf.coad$Tumor_Sample_Barcode, 15))
+)
+
+#with curatedTCGAData
+coad.map <- sampleMap(coad)
+which(strtrim(barcodes.coad, 12) %in% strtrim(coad.map$colname, 12))
+
+##BRCA with TCGABiolinks
+length(which(strtrim(barcodes.brca, 15) %in% strtrim(maf.brca$Tumor_Sample_Barcode, 15))
+)
+
+##PRAD with curatedTCGAData
+prad.map<- sampleMap(prad)
+length(which(strtrim(barcodes.prad, 15) %in% strtrim(prad.map$colname, 15))
+)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 # Session
@@ -375,5 +439,4 @@ clinical.prad <- GDCprepare_clinic(query.clinic.prad,
 ```{r sessionInfo, cache = FALSE}
 devtools::session_info()
 ```
-
 
