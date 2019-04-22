@@ -13,24 +13,37 @@ output:
 ---
 
 ```{r}
-setwd("D:/Escritorio/Epigenetics-cancer code")
+setwd("E:/Escritorio/Epigenetics & cancer")
 ```
 
+```{r isntall_Rpackages, include=FALSE}
+BiocManager::install("maftools", version = "3.8")
+BiocManager::install("knitr", version = "3.8")
+install.packages("devtools")
+suppressPackageStartupMessages(library(devtools))
+BiocManager::install("curatedTCGAData", version = "3.8")
+BiocManager::install("MultiAssayExperiment", version = "3.8")
+BiocManager::install("RaggedExperiment", version = "3.8")
+BiocManager::install("TCGAbiolinks", version = "3.8")
+BiocManager::install("ExperimentHub", version = "3.8")
+BiocManager::install("stringr", version = "3.8")
+BiocManager::install("IlluminaHumanMethylation450kanno.ilmn12.hg19", version = "3.8")
+```
 
 ```{r Rpackages, include=FALSE}
-#BiocManager::install("maftools", version = "3.8")
 suppressPackageStartupMessages(library(knitr))
 suppressPackageStartupMessages(library(curatedTCGAData))
 #devtools::install_github('BioinformaticsFMRP/TCGAbiolinks')
 suppressPackageStartupMessages(library(TCGAbiolinks))
 suppressPackageStartupMessages(library(MultiAssayExperiment))
-#suppressPackageStartupMessages(library(RaggedExperiment))
+suppressPackageStartupMessages(library(RaggedExperiment))
 #suppressPackageStartupMessages(library(ExperimentHub))
 suppressPackageStartupMessages(library(devtools))
 ## library(biomaRt)
 suppressPackageStartupMessages(library(IlluminaHumanMethylation450kanno.ilmn12.hg19))
 suppressPackageStartupMessages(library(stringr))
 suppressPackageStartupMessages(library(maftools))
+library(ComplexHeatmap)
 ```
 
 ```{r constants, cache=FALSE}
@@ -92,10 +105,10 @@ query.met.coad2 <- GDCquery(project = coad,
                           sample.type = c("Primary solid Tumor", "Solid Tissue Normal"),
                           barcode = barcodes.coad)
 
-GDCdownload(query.met.coad2)
+#GDCdownload(query.met.coad2)
 
 met.coad.450 <- GDCprepare(query = query.met.coad2,
-                         save = TRUE,
+                         save = FALSE,
                          save.filename = "coadDNAmet450k.rda" ,
                          summarizedExperiment = TRUE)
 ```
@@ -119,10 +132,10 @@ query.met.brca2 <- GDCquery(project = brca,
                           sample.type = c("Primary solid Tumor", "Solid Tissue Normal"),
                           barcode = barcodes.brca)
 
-GDCdownload(query.met.brca2)
+#GDCdownload(query.met.brca2)
 
 met.brca.450 <- GDCprepare(query = query.met.brca2,
-                         save = TRUE,
+                         save = FALSE,
                          save.filename = "brcaDNAmet450k.rda" ,
                          summarizedExperiment = TRUE)
 ```
@@ -146,10 +159,10 @@ query.met.luad2 <- GDCquery(project = luad,
                           sample.type = c("Primary solid Tumor", "Solid Tissue Normal"),
                           barcode = barcodes.luad)
 
-GDCdownload(query.met.luad2)
+#GDCdownload(query.met.luad2)
 
 met.luad.450 <- GDCprepare(query = query.met.luad2,
-                         save = TRUE,
+                         save = FALSE,
                          save.filename = "luadDNAmet450k.rda" ,
                          summarizedExperiment = TRUE)
 
@@ -174,10 +187,10 @@ query.met.prad2 <- GDCquery(project = prad,
                           sample.type = c("Primary solid Tumor", "Solid Tissue Normal"),
                           barcode = barcodes.prad)
 
-GDCdownload(query.met.prad2)
+#GDCdownload(query.met.prad2)
 
 met.prad.450 <- GDCprepare(query = query.met.prad2,
-                         save = TRUE,
+                         save = FALSE,
                          save.filename = "pradDNAmet450k.rda" ,
                          summarizedExperiment = TRUE)
 ```
@@ -196,10 +209,10 @@ query.exp.coad <- GDCquery(project = coad,
                       sample.type = c("Primary solid Tumor", "Solid Tissue Normal"),
                       barcode = strtrim(barcodes.coad, 12))
 
-GDCdownload(query.exp.coad)
+#GDCdownload(query.exp.coad)
 
 exp.coad <- GDCprepare(query = query.exp.coad,
-                      save = TRUE,
+                      save = FALSE,
                       save.filename = "coadRNAseq.rda" ,
                       summarizedExperiment = TRUE)
 ```
@@ -214,14 +227,26 @@ query.exp.brca <- GDCquery(project = brca,
                       platform = "Illumina HiSeq", 
                       file.type = "normalized_results",
                       sample.type = c("Primary solid Tumor", "Solid Tissue Normal"), 
-                      barcode = strtrim(barcodes.brca, 12))
-
-GDCdownload(query.exp.brca)
+                      barcode = barcodes.no.dup)
+#strtrim(barcodes.brca, 12)
+#GDCdownload(query.exp.brca)
 
 exp.brca <- GDCprepare(query = query.exp.brca,
                       save = FALSE,
                       save.filename = "brcaRNAseq.rda" ,
                       summarizedExperiment = TRUE)
+```
+
+
+```{r}
+## obtener el listado de barcodes no duplicados en exp.brca
+dup <- query.exp.brca$results[[1]]$cases[duplicated(query.exp.brca$results[[1]]$cases)]
+barcodes.no.dup <- query.exp.brca$results[[1]]$cases[!duplicated(query.exp.brca$results[[1]]$cases)]
+idx <- which(barcodes.no.dup %in% dup) #listado con el índice de los barcodes duplicados
+barcodes.no.dup <- barcodes.no.dup[-idx]
+any(dup %in% barcodes.no.dup)
+
+# volver a descargar query.exp.brca con los nuevos barcodes
 ```
 
 
@@ -236,10 +261,10 @@ query.exp.luad <- GDCquery(project = luad,
                       sample.type = c("Primary solid Tumor", "Solid Tissue Normal"),
                       barcode = strtrim(barcodes.luad, 12))
 
-GDCdownload(query.exp.luad)
+#GDCdownload(query.exp.luad)
 
 exp.luad <- GDCprepare(query = query.exp.luad,
-                      save = TRUE,
+                      save = FALSE,
                       save.filename = "luadRNAseq.rda" ,
                       summarizedExperiment = TRUE)
 ```
@@ -256,10 +281,10 @@ query.exp.prad <- GDCquery(project = prad,
                       sample.type = c("Primary solid Tumor", "Solid Tissue Normal"),
                       barcode = strtrim(barcodes.prad, 12))
 
-GDCdownload(query.exp.prad)
+#GDCdownload(query.exp.prad)
 
 exp.prad <- GDCprepare(query = query.exp.prad,
-                      save = TRUE,
+                      save = FALSE,
                       save.filename = "pradRNAseq.rda",
                       summarizedExperiment = TRUE)
 ```
@@ -274,12 +299,12 @@ query.mut.coad  <- GDCquery(project = coad,
                             data.type = "Simple somatic mutation",
                             sample.type = "Primary solid Tumor",
                             legacy = TRUE)
-GDCdownload(query.mut.coad)
-maf.coad <- GDCprepare(query.mut.coad,
+#GDCdownload(query.mut.coad)
+mut.coad <- GDCprepare(query.mut.coad,
                       save = TRUE,
                       save.filename = "coadMut.rda")
 
-coad <- curatedTCGAData(diseaseCode = "COAD",
+maf.coad <- curatedTCGAData(diseaseCode = "COAD",
                         assays = "Mutation",
                         dry.run = FALSE)
 
@@ -288,19 +313,17 @@ cna.coad <- curatedTCGAData(diseaseCode = "COAD",
                             dry.run = FALSE)
 
 ## for BRCA
-query.mut.brca  <- GDCquery(project = brca, 
-                            data.category = "Simple nucleotide variation", 
-                            data.type = "Simple somatic mutation",
-                            sample.type = "Primary solid Tumor",
-                            file.type = "gsc_BRCA_pairs.aggregated.capture.tcga.uuid.automated.somatic.maf",
-                            legacy = TRUE)
+#query.mut.brca  <- GDCquery(project = brca, 
+#                            data.category = "Simple nucleotide variation", 
+#                            data.type = "Simple somatic mutation",
+#                            sample.type = "Primary solid Tumor",
+#                            file.type = "gsc_BRCA_pairs.aggregated.capture.tcga.uuid.automated.somatic.maf",
+#                            legacy = TRUE)
 
-GDCdownload(query.mut.brca)
-maf.brca <- GDCprepare(query.mut.brca,
-                      save = TRUE,
-                      save.filename = "brcaMut.rda")
+#GDCdownload(query.mut.brca)
+#maf.brca <- GDCprepare(query.mut.brca, save = TRUE, save.filename = "brcaMut.rda")
 
-brca <- curatedTCGAData(diseaseCode = "BRCA",
+maf.brca <- curatedTCGAData(diseaseCode = "BRCA",
                         assays = "Mutation",
                         dry.run = FALSE)
 
@@ -309,17 +332,17 @@ cna.brca <- curatedTCGAData(diseaseCode = "BRCA",
                             dry.run = FALSE)
 
 ## for LUAD
-query.mut.luad  <- GDCquery(project = luad, 
-                            data.category = "Simple nucleotide variation", 
-                            data.type = "Simple somatic mutation",
-                            #sample.type = "Primary solid Tumor",
-                            legacy = TRUE)
-GDCdownload(query.mut.luad)
-maf.luad <- GDCprepare(query.mut.luad,
-                      save = TRUE,
-                      save.filename = "luadMut.rda")
+#query.mut.luad  <- GDCquery(project = luad, 
+#                            data.category = "Simple nucleotide variation", 
+#                            data.type = "Simple somatic mutation",
+#                            #sample.type = "Primary solid Tumor",
+#                            legacy = TRUE)
+#GDCdownload(query.mut.luad)
+#maf.luad <- GDCprepare(query.mut.luad,
+#                      save = TRUE,
+#                      save.filename = "luadMut.rda")
 
-luad <- curatedTCGAData(diseaseCode = "LUAD",
+maf.luad <- curatedTCGAData(diseaseCode = "LUAD",
                         assays = "Mutation",
                         dry.run = FALSE)
 
@@ -328,17 +351,17 @@ cna.luad <- curatedTCGAData(diseaseCode = "LUAD",
                             dry.run = FALSE)
 
 ## for PRAD
-query.mut.prad  <- GDCquery(project = prad, 
-                            data.category = "Simple nucleotide variation", 
-                            data.type = "Simple somatic mutation",
-                            sample.type = "Primary solid Tumor",
-                            legacy = TRUE)
-GDCdownload(query.mut.prad)
-maf.prad <- GDCprepare(query.mut.prad,
-                      save = TRUE,
-                      save.filename = "pradMut.rda")
+#query.mut.prad  <- GDCquery(project = prad, 
+#                            data.category = "Simple nucleotide variation", 
+#                            data.type = "Simple somatic mutation",
+#                            sample.type = "Primary solid Tumor",
+#                            legacy = TRUE)
+#GDCdownload(query.mut.prad)
+#maf.prad <- GDCprepare(query.mut.prad,
+#                      save = TRUE,
+#                      save.filename = "pradMut.rda")
 
-prad <- curatedTCGAData(diseaseCode = "PRAD",
+maf.prad <- curatedTCGAData(diseaseCode = "PRAD",
                         assays = "Mutation",
                         dry.run = FALSE)
 
@@ -362,8 +385,9 @@ query.clinic.coad <- GDCquery(project = coad,
 GDCdownload(query.clinic.coad)
 
 clinical.coad <- GDCprepare(query.clinic.coad,
-                                      save = TRUE,
+                                      save = FALSE,
                                       save.filename = "brcaClinic.rda")
+
 
 ## for BRCA
 query.clinic.brca <- GDCquery(project = brca, 
@@ -376,7 +400,7 @@ query.clinic.brca <- GDCquery(project = brca,
 GDCdownload(query.clinic.brca)
 
 clinical.brca <- GDCprepare(query.clinic.brca,
-                                      save = TRUE,
+                                      save = FALSE,
                                       save.filename = "brcaClinic.rda")
 
 ## for LUAD
@@ -390,7 +414,7 @@ query.clinic.luad <- GDCquery(project = luad,
 GDCdownload(query.clinic.luad)
 
 clinical.luad <- GDCprepare(query.clinic.luad,
-                                      save = TRUE,
+                                      save = FALSE,
                                       save.filename = "luadClinic.rda")
 
 ## for PRAD
@@ -404,8 +428,16 @@ query.clinic.prad <- GDCquery(project = prad,
 GDCdownload(query.clinic.prad)
 
 clinical.prad <- GDCprepare(query.clinic.prad,
-                                      save = TRUE,
+                                      save = FALSE,
                                       save.filename = "pradClinic.rda")
+```
+
+
+```{r}
+clinic_coad <- GDCquery_clinic(coad, type = "clinical", save.csv = FALSE)
+clinic_brca <- GDCquery_clinic(brca, type = "clinical", save.csv = FALSE)
+clinic_prad <- GDCquery_clinic(prad, type = "clinical", save.csv = FALSE)
+clinic_luad <- GDCquery_clinic(luad, type = "clinical", save.csv = FALSE)
 ```
 
 
@@ -446,23 +478,447 @@ cna.prad.data <- sampleMap(cna.prad)
 length(which(strtrim(barcodes.prad, 15) %in% strtrim(cna.prad.data$colname, 15)))
 ```
 
+# PIPELINE PARA EL ANÁLSIS DEL METILOMA 
+
+Con los datos descargados con TCGABiolinks (level = 3) se obtienen los valores beta de metilación, los cuales están escalados de 0.0 (sin metilar) a 1.0 (totalmente metilados).
+
+## BÚSQUEDA DE REGIONES CON UN PERFIL DE METILACIÓN ABERRANTE
+
+### PREVISUALIZACIÓN DE LAS BASES DE DATOS
+
+```{r}
+# VISUALIZACIÓN DE LOS DATOS 
+
+dim(met.coad.450)
+dim(met.brca.450)
+dim(met.prad.450)
+dim(met.luad.450)
+```
+
+Los datos de la plataforma de metilación 450k, llamada así por el número de probes que analiza, presenta 3 tipos de probes: cg (CpG loci), ch (non-CpG loci) and rs (SNP assay). Como se puede comprobar todas las bases de datos disponen del mismo número de filas que se corresponden con las probes descargadas y el número de columnas se corresponden con el número de muestras.
+
+
+### PREPROCESAMIENTO DE LOS DATOS
+A continuación se preprocesan los datos obtenidos de metilación:
+
+```{r}
+# PREPROCESAMIENTO DE LOS DATOS
+
+## eliminamos los valores faltantes NA
+met.coad <- subset(met.coad.450,subset = (rowSums(is.na(assay(met.coad.450))) == 0))
+dim(met.coad)
+met.brca <- subset(met.brca.450,subset = (rowSums(is.na(assay(met.brca.450))) == 0))
+dim(met.brca)
+met.prad <- subset(met.prad.450,subset = (rowSums(is.na(assay(met.prad.450))) == 0))
+dim(met.prad)
+met.luad <- subset(met.luad.450,subset = (rowSums(is.na(assay(met.luad.450))) == 0))
+dim(met.luad)
+
+## eliminamos los datos procedentes de los cromosomas sexuales (chrX y chrY) y aquellos correspondientes a las probes rs, que han de eliminarse de acuerdo a los manuales de Illumina 
+met.coad <- subset(met.coad,subset = !as.character(seqnames(met.coad)) %in% c("chrNA","chrX","chrY"))
+dim(met.coad)
+met.brca <- subset(met.brca,subset = !as.character(seqnames(met.brca)) %in% c("chrNA","chrX","chrY"))
+dim(met.brca)
+met.prad <- subset(met.prad,subset = !as.character(seqnames(met.prad)) %in% c("chrNA","chrX","chrY"))
+dim(met.prad)
+met.luad <- subset(met.luad,subset = !as.character(seqnames(met.luad)) %in% c("chrNA","chrX","chrY"))
+dim(met.luad)
+```
+
+
+### DIFERENCIAS ENTRE LAS MEDIAS DE METILACIÓN DE MUSTRAS DE TEJIDO NORMAL Y TUMORAL
+Seguidamente se realizan un cálculo descriptivo previo, en el que apreciar si hay diferencias significativas entre la media de metilación etre muestras de tejido normal y tumoral:
+
+```{r}
+# VISUALIZACIÓN DE MEDIAS ENTRE BETAS DE MUESTRAS NORMALES Y TUMORALES PARA COAD
+
+TCGAvisualize_meanMethylation(met.coad,
+                              groupCol = "definition",
+                              group.legend = "Groups",
+                              print.pvalue = TRUE,
+                              filename = 'methylationMean_COAD_norm-tum.pdf')
+```
+
+Con un p-valor igual a 0.196 no hay diferencias significativas entre el grado de metilación en las muestras normales y tumorales para el tipo de cáncer de colon. Al observar el mínimo y el máximo en ambos grupos se aprecia que las muestras tumorales presentan mayores perfiles de hipo e hipermetilación. 
+
+```{r}
+# VISUALIZACIÓN DE MEDIAS ENTRE BETAS DE MUESTRAS NORMALES Y TUMORALES PARA BRCA
+
+TCGAvisualize_meanMethylation(met.brca,
+                              groupCol = "definition",
+                              group.legend = "Groups",
+                              print.pvalue = TRUE,
+                              filename = 'methylationMean_BRCA_norm-tum.pdf')
+```
+
+Al igual que ocurre para COAD, no hay diferencias significativas al comparar el grado de metilación entre muestras de tejido normal y canceroso.
+
+```{r}
+# VISUALIZACIÓN DE MEDIAS ENTRE BETAS DE MUESTRAS NORMALES Y TUMORALES PARA PRAD
+
+TCGAvisualize_meanMethylation(met.prad,
+                              groupCol = "definition",
+                              group.legend = "Groups",
+                              print.pvalue = TRUE,
+                              filename = 'methylationMean_PRAD_norm-tum.pdf')
+```
+
+En PRAD **sí que hay diferencias significativas**.
+
+```{r}
+# VISUALIZACIÓN DE MEDIAS ENTRE BETAS DE MUESTRAS NORMALES Y TUMORALES PARA LUAD
+
+TCGAvisualize_meanMethylation(met.luad,
+                              groupCol = "definition",
+                              group.legend = "Groups",
+                              print.pvalue = TRUE,
+                              filename = 'methylationMean_LUAD_norm-tum.pdf')
+```
+
+En LUAD no solo no hay diferencias significativas, sino que es la cohorte en la que se aprecia una menor diferencia entre ambos tipos de muestras.
+
+
+### DIFFERENTIAL METHYLATION REGIONS (DMR)
+A continuación se obtendrán las regiones diferencialmente metiladas en ambos grupos (normal y tumoral), para ello el paquete TCGABiolinks dispone de una función `TCGAanalyze_DMR`. Esta función calcula en primer lugar la diferencia entre la media de metilización (media de los valores beta) de cada grupo para cada probe. Seguidamente, calcula la expresión diferencial empleando el test de Wilcoxon ajustado por el método de Menjamini-Hochberg. Se especifican además el valor umbral del p-valor ajustado y la diferencia absoluta mínima entre los valores beta.
+
+1. COAD
+
+```{r}
+# CALCULO DMR (Differentially Methylation Region) para COAD
+
+met.coad <- TCGAanalyze_DMR(met.coad,
+                groupCol = "definition", 
+                group1 = "Primary solid Tumor",
+                group2= "Solid Tissue Normal", 
+                p.cut = 0.01,
+                diffmean.cut = 0.25,
+                legend = "State",
+                plot.filename = "metvolcano_COAD.png",
+                cores = 1)
+```
+
+
+```{r}
+dmr_coad <- read.csv("DMR_results_COAD_definition_Primary.solid.Tumor_Solid.Tissue.Normal_pcut_0.01_meancut_0.25.csv")
+
+## exploración de los datos de metilación diferencial entre muestras normales y tumorales
+dim(dmr_coad)
+length(which(dmr_coad$status.Solid.Tissue.Normal.Primary.solid.Tumor != "Not Significant"))
+
+cols <- c("status.Primary.solid.Tumor.Solid.Tissue.Normal", "status.Solid.Tissue.Normal.Primary.solid.Tumor")
+summary(dmr_coad[cols])
+
+dmr_coad_sel <- dmr_coad[dmr_coad$status.Solid.Tissue.Normal.Primary.solid.Tumor %in% c("Hypermethylated in Primary solid Tumor", "Hypomethylated in Primary solid Tumor"), -c(5:8)]
+
+dmr_coad_sel$status.Solid.Tissue.Normal.Primary.solid.Tumor <- factor(dmr_coad_sel$status.Solid.Tissue.Normal.Primary.solid.Tumor, levels = c("Hypermethylated in Primary solid Tumor", "Hypomethylated in Primary solid Tumor"), labels = c('Hypermethylated', 'Hypomethylated'))
+```
+
+
+2. BRCA
+
+```{r}
+# CALCULO DMR (Differentially Methylation Region) para BRCA
+
+met.brca <-TCGAanalyze_DMR(met.brca,
+                groupCol = "definition", 
+                group1 = "Primary solid Tumor",
+                group2= "Solid Tissue Normal", 
+                p.cut = 0.01,
+                diffmean.cut = 0.25,
+                legend = "State",
+                plot.filename = "metvolcano_BRCA.png",
+                cores = 1)
+```
+
+```{r}
+dmr_brca <- read.csv("DMR_results_BRCA_definition_Primary.solid.Tumor_Solid.Tissue.Normal_pcut_0.01_meancut_0.25.csv")
+
+## exploración de los datos de metilación diferencial entre muestras normales y tumorales
+dim(dmr_brca)
+length(which(dmr_brca$status.Solid.Tissue.Normal.Primary.solid.Tumor != "Not Significant"))
+
+summary(dmr_brca[cols])
+
+dmr_brca_sel <- dmr_brca[dmr_coad$status.Solid.Tissue.Normal.Primary.solid.Tumor %in% c("Hypermethylated in Primary solid Tumor", "Hypomethylated in Primary solid Tumor"), -c(5:8)]
+```
+Parece que COAD presenta mayor grado de metilación que BRCA, y en ambos casos es mayor el número de regiones hipermetiladas que hipometiladas.
+
+
+3. PRAD
+
+```{r}
+# CALCULO DMR (Differentially Methylation Region) para BRCA
+
+met.prad <-TCGAanalyze_DMR(met.prad,
+                groupCol = "definition", 
+                group1 = "Primary solid Tumor",
+                group2= "Solid Tissue Normal", 
+                p.cut = 0.01,
+                diffmean.cut = 0.25,
+                legend = "State",
+                plot.filename = "metvolcano_PRAD.png",
+                cores = 1)
+```
+
+```{r}
+dmr_prad <- read.csv("DMR_results_PRAD_definition_Primary.solid.Tumor_Solid.Tissue.Normal_pcut_0.01_meancut_0.25.csv")
+
+## exploración de los datos de metilación diferencial entre muestras normales y tumorales
+dim(dmr_prad)
+length(which(dmr_prad$status.Solid.Tissue.Normal.Primary.solid.Tumor != "Not Significant"))
+
+summary(dmr_prad[cols])
+
+dmr_prad_sel <- dmr_prad[dmr_prad$status.Solid.Tissue.Normal.Primary.solid.Tumor %in% c("Hypermethylated in Primary solid Tumor", "Hypomethylated in Primary solid Tumor"), -c(5:8)]
+```
+
+
+4. LUAD
+
+```{r}
+# CALCULO DMR (Differentially Methylation Region) para BRCA
+
+met.luad <-TCGAanalyze_DMR(met.luad,
+                groupCol = "definition", 
+                group1 = "Primary solid Tumor",
+                group2= "Solid Tissue Normal", 
+                p.cut = 0.01,
+                diffmean.cut = 0.25,
+                legend = "State",
+                plot.filename = "metvolcano_LUAD.png",
+                cores = 1)
+```
+
+```{r}
+dmr_luad <- read.csv("DMR_results_LUAD_definition_Primary.solid.Tumor_Solid.Tissue.Normal_pcut_0.01_meancut_0.25.csv")
+
+## exploración de los datos de metilación diferencial entre muestras normales y tumorales
+dim(dmr_luad)
+length(which(dmr_luad$status.Primary.solid.Tumor.Solid.Tissue.Normal != "Not Significant"))
+
+summary(dmr_luad[cols])
+
+dmr_luad_sel <- dmr_luad[dmr_prad$status.Solid.Tissue.Normal.Primary.solid.Tumor %in% c("Hypermethylated in Primary solid Tumor", "Hypomethylated in Primary solid Tumor"), -c(5:8)]
+```
+
+
+## INTEGRAR EPIGENÓMICA CON TRANSCRIPTÓMICA
+
+A continuación se integran los datos obtenidos del metiloma con los datos de expresión, para comprobar qué genes alteran su expresión debdido al perfil de metilación (posteriormente buscar si alguno de estos genes presentan mutaciones características en alguna de las cohortes, especialmente de los genes candidatos).
+
+
+1. COAD
+
+```{r}
+dataNorm <-  TCGAanalyze_Normalization(tabDF = exp.coad, geneInfo =  geneInfo, method = 'gcContent') 
+dataNorm2 <-  TCGAanalyze_Normalization(tabDF = exp.coad, geneInfo =  geneInfo, method = 'geneLength')
+dataFilt <- TCGAanalyze_Filtering(tabDF = dataNorm2,
+                                  method = "quantile", 
+                                  qnt.cut =  0.25)
+par(mfrow=c(2,2))
+boxplot(assay(exp.coad), main = "Datos sin normalizar")
+boxplot(dataNorm, main = "Método GC content")
+boxplot(dataNorm2, main = " Método geneLength")
+boxplot(dataFilt, main = "Datos normalizads \n + filtrados")
+
+
+COAD.expMatrix <- assay(exp.coad)
+samplesNT <- which(exp.coad$definition == 'Solid Tissue Normal')
+samplesTP <- which(exp.coad$definition == 'Primary solid Tumor')
+
+dea.coad <- TCGAanalyze_DEA(mat1 = COAD.expMatrix[,samplesNT],
+                            mat2 = COAD.expMatrix[,samplesTP],
+                            Cond1type = "Normal",
+                            Cond2type = "Tumor",
+                            fdr.cut = 0.01 ,
+                            logFC.cut = 1,
+                            method = "glmLRT")
+# Colaprico et al. 2015: fdr.cur = 0.001, logFC.cut >=3
+
+dim(dea.coad)
+dea.coad.FiltLevel <- TCGAanalyze_LevelTab(dea.coad,"Tumor","Normal",
+                                          COAD.expMatrix[,samplesTP], COAD.expMatrix[,samplesNT])
+head(dea.coad.FiltLevel)
+
+starburst.coad <- TCGAvisualize_starburst(met.coad, 
+                                     dea.coad,
+                                     group1 = "Solid Tissue Normal",
+                                     group2 = "Primary solid Tumor",
+                                     met.platform = "450K",
+                                     genome = "hg19",
+                                     filename = "starbustCOAD.png",
+                                     met.p.cut = 10^-5, 
+                                     exp.p.cut = 10^-5,
+                                     diffmean.cut = 0.25,
+                                     logFC.cut = 1,width = 15,height = 10,
+                                     names = TRUE)
+# Colaprico et al. 2015: logFC.cut >=3
+
+dim(starburst.coad)
+table(starburst.coad['starburst.status'])
+```
+
+
+2. BRCA
+
+```{r}
+dataNorm <-  TCGAanalyze_Normalization(tabDF = exp.brca, geneInfo =  geneInfo, method = 'gcContent') 
+dataNorm2 <-  TCGAanalyze_Normalization(tabDF = exp.brca, geneInfo =  geneInfo, method = 'geneLength')
+dataFilt <- TCGAanalyze_Filtering(tabDF = dataNorm2,
+                                  method = "quantile", 
+                                  qnt.cut =  0.25)
+par(mfrow=c(2,2))
+boxplot(assay(exp.brca), main = "Datos sin normalizar")
+boxplot(dataNorm, main = "Método GC content")
+boxplot(dataNorm2, main = " Método geneLength")
+boxplot(dataFilt, main = "Datos normalizads \n + filtrados")
+
+
+BRCA.expMatrix <- assay(exp.brca)
+samplesNT <- which(exp.brca$definition == 'Solid Tissue Normal')
+samplesTP <- which(exp.brca$definition == 'Primary solid Tumor')
+
+dea.brca <- TCGAanalyze_DEA(mat1 = BRCA.expMatrix[,samplesNT],
+                            mat2 = BRCA.expMatrix[,samplesTP],
+                            Cond1type = "Normal",
+                            Cond2type = "Tumor",
+                            fdr.cut = 0.01 ,
+                            logFC.cut = 1,
+                            method = "glmLRT")
+# Colaprico et al. 2015: fdr.cur = 0.001, logFC.cut >=3
+
+dim(dea.brca)
+dea.brca.FiltLevel <- TCGAanalyze_LevelTab(dea.brca,"Tumor","Normal",
+                                          BRCA.expMatrix[,samplesTP], BRCA.expMatrix[,samplesNT])
+head(dea.brca.FiltLevel)
+
+starburst.coad <- TCGAvisualize_starburst(met.brca, 
+                                     dea.brca,
+                                     group1 = "Solid Tissue Normal",
+                                     group2 = "Primary solid Tumor",
+                                     met.platform = "450K",
+                                     genome = "hg19",
+                                     filename = "starbustBRCA.png",
+                                     met.p.cut = 10^-5, 
+                                     exp.p.cut = 10^-5,
+                                     diffmean.cut = 0.25,
+                                     logFC.cut = 1,width = 15,height = 10,
+                                     names = TRUE)
+# Colaprico et al. 2015: logFC.cut >=3
+
+dim(starburst.coad)
+table(starburst.coad['starburst.status'])
+```
+
+
+3. PRAD
+
+```{r}
+PRAD.expMatrix <- assay(exp.prad)
+samplesNT <- which(exp.prad$definition == 'Solid Tissue Normal')
+samplesTP <- which(exp.prad$definition == 'Primary solid Tumor')
+
+dea.prad <- TCGAanalyze_DEA(mat1 = PRAD.expMatrix[,samplesNT],
+                            mat2 = PRAD.expMatrix[,samplesTP],
+                            Cond1type = "Normal",
+                            Cond2type = "Tumor",
+                            fdr.cut = 0.01 ,
+                            logFC.cut = 1,
+                            method = "glmLRT")
+# Colaprico et al. 2015: fdr.cur = 0.001, logFC.cut >=3
+
+dim(dea.prad)
+dea.prad.FiltLevel <- TCGAanalyze_LevelTab(dea.prad,"Tumor","Normal",
+                                          PRAD.expMatrix[,samplesTP], PRAD.expMatrix[,samplesNT])
+head(dea.prad.FiltLevel)
+
+starburst.prad <- TCGAvisualize_starburst(met.prad, 
+                                     dea.brca,
+                                     group1 = "Solid Tissue Normal",
+                                     group2 = "Primary solid Tumor",
+                                     met.platform = "450K",
+                                     genome = "hg19",
+                                     filename = "starbustPRAD.png",
+                                     met.p.cut = 10^-5, 
+                                     exp.p.cut = 10^-5,
+                                     diffmean.cut = 0.25,
+                                     logFC.cut = 1,width = 15,height = 10,
+                                     names = TRUE)
+# Colaprico et al. 2015: logFC.cut >=3
+
+dim(starburst.prad)
+table(starburst.prad['starburst.status'])
+```
+
+
+4. LUAD
+```{r}
+LUAD.expMatrix <- assay(exp.luad)
+samplesNT <- which(exp.luad$definition == 'Solid Tissue Normal')
+samplesTP <- which(exp.luad$definition == 'Primary solid Tumor')
+
+dea.luad <- TCGAanalyze_DEA(mat1 = LUAD.expMatrix[,samplesNT],
+                            mat2 = LUAD.expMatrix[,samplesTP],
+                            Cond1type = "Normal",
+                            Cond2type = "Tumor",
+                            fdr.cut = 0.01 ,
+                            logFC.cut = 1,
+                            method = "glmLRT")
+# Colaprico et al. 2015: fdr.cur = 0.001, logFC.cut >=3
+
+dim(dea.luad)
+dea.luad.FiltLevel <- TCGAanalyze_LevelTab(dea.luad,"Tumor","Normal",
+                                          LUAD.expMatrix[,samplesTP], LUAD.expMatrix[,samplesNT])
+head(dea.luad.FiltLevel)
+
+starburst.luad <- TCGAvisualize_starburst(met.luad, 
+                                     dea.luad,
+                                     group1 = "Solid Tissue Normal",
+                                     group2 = "Primary solid Tumor",
+                                     met.platform = "450K",
+                                     genome = "hg19",
+                                     filename = "starbustLUAD.png",
+                                     met.p.cut = 10^-5, 
+                                     exp.p.cut = 10^-5,
+                                     diffmean.cut = 0.25,
+                                     logFC.cut = 1,width = 15,height = 10,
+                                     names = TRUE)
+# Colaprico et al. 2015: logFC.cut >=3
+
+dim(starburst.luad)
+table(starburst.luad['starburst.status'])
+```
 
 
 
+# ANÁLISIS MUTACIONAL
+
+```{r}
+mut.coad <- as.data.frame(assay(maf.coad))
+mut.brca <- as.data.frame(assay(maf.brca))
+mut.luad <- as.data.frame(assay(maf.luad))
+mut.prad <- as.data.frame(assay(maf.prad))
+
+mut.coad <- mut.coad[,strtrim(colnames(mut.coad), 12)%in% strtrim(barcodes.coad, 12)] #no coincide ninguna columna
+dim(mut.coad)
+
+mut.brca <- mut.brca[,strtrim(colnames(mut.brca), 12)%in% strtrim(barcodes.brca, 12)]
+dim(mut.brca)
+
+mut.luad <- mut.luad[,strtrim(colnames(mut.luad), 12)%in% strtrim(barcodes.luad, 12)] 
+dim(mut.luad)
+
+mut.prad <- mut.prad[,strtrim(colnames(mut.prad), 12)%in% strtrim(barcodes.prad, 12)] 
+dim(mut.prad)
+```
 
 
 
+# Save image
 
-
-
-
-
-
-
-
-
-
-
+```{r}
+save.image(file="myObjects.RData")
+```
 
 
 
