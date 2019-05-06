@@ -17,10 +17,9 @@ setwd("E:/Escritorio/Epigenetics & cancer")
 ```
 
 ```{r isntall_Rpackages, include=FALSE}
+install.packages("devtools")
 BiocManager::install("maftools", version = "3.8")
 BiocManager::install("knitr", version = "3.8")
-install.packages("devtools")
-suppressPackageStartupMessages(library(devtools))
 BiocManager::install("curatedTCGAData", version = "3.8")
 BiocManager::install("MultiAssayExperiment", version = "3.8")
 BiocManager::install("RaggedExperiment", version = "3.8")
@@ -28,6 +27,8 @@ BiocManager::install("TCGAbiolinks", version = "3.8")
 BiocManager::install("ExperimentHub", version = "3.8")
 BiocManager::install("stringr", version = "3.8")
 BiocManager::install("IlluminaHumanMethylation450kanno.ilmn12.hg19", version = "3.8")
+BiocManager::install("limma", version = "3.8")
+BiocManager::install("ABC.RAP", version = "3.8")
 ```
 
 ```{r Rpackages, include=FALSE}
@@ -38,12 +39,13 @@ suppressPackageStartupMessages(library(TCGAbiolinks))
 suppressPackageStartupMessages(library(MultiAssayExperiment))
 suppressPackageStartupMessages(library(RaggedExperiment))
 #suppressPackageStartupMessages(library(ExperimentHub))
-suppressPackageStartupMessages(library(devtools))
+#suppressPackageStartupMessages(library(devtools))
 ## library(biomaRt)
 suppressPackageStartupMessages(library(IlluminaHumanMethylation450kanno.ilmn12.hg19))
 suppressPackageStartupMessages(library(stringr))
-suppressPackageStartupMessages(library(maftools))
+suppressPackageStartupMessages(library("maftools"))
 library(ComplexHeatmap)
+require(limma)
 ```
 
 ```{r constants, cache=FALSE}
@@ -74,13 +76,18 @@ commonBarcodes <- function(project, query, n){
     commonMetExp <- sample(commonMetExp, n)
   }
   
-  named_tumors <- ids_tumor
+  named_tumors <- ids_tumora
   names(named_tumors) <- strtrim(ids_tumor, 12)
   named_normals <- ids_normal
   names(named_normals) <- strtrim(ids_normal, 12)
   barcodes <- as.list(c(named_tumors[commonMetExp], named_normals[commonMetExp]))
   return(barcodes)
 }
+```
+
+
+```{r}
+ann450k = getAnnotation(IlluminaHumanMethylation450kanno.ilmn12.hg19)
 ```
 
 
@@ -242,7 +249,7 @@ exp.brca <- GDCprepare(query = query.exp.brca,
 ## obtener el listado de barcodes no duplicados en exp.brca
 dup <- query.exp.brca$results[[1]]$cases[duplicated(query.exp.brca$results[[1]]$cases)]
 barcodes.no.dup <- query.exp.brca$results[[1]]$cases[!duplicated(query.exp.brca$results[[1]]$cases)]
-idx <- which(barcodes.no.dup %in% dup) #listado con el índice de los barcodes duplicados
+idx <- which(barcodes.no.dup %in% dup) #listado con el ?ndice de los barcodes duplicados
 barcodes.no.dup <- barcodes.no.dup[-idx]
 any(dup %in% barcodes.no.dup)
 
@@ -478,16 +485,16 @@ cna.prad.data <- sampleMap(cna.prad)
 length(which(strtrim(barcodes.prad, 15) %in% strtrim(cna.prad.data$colname, 15)))
 ```
 
-# PIPELINE PARA EL ANÁLSIS DEL METILOMA 
+# PIPELINE PARA EL AN?LSIS DEL METILOMA 
 
-Con los datos descargados con TCGABiolinks (level = 3) se obtienen los valores beta de metilación, los cuales están escalados de 0.0 (sin metilar) a 1.0 (totalmente metilados).
+Con los datos descargados con TCGABiolinks (level = 3) se obtienen los valores beta de metilaci?n, los cuales est?n escalados de 0.0 (sin metilar) a 1.0 (totalmente metilados).
 
-## BÚSQUEDA DE REGIONES CON UN PERFIL DE METILACIÓN ABERRANTE
+## BÃšSQUEDA DE REGIONES CON UN PERFIL DE METILACI?N ABERRANTE
 
-### PREVISUALIZACIÓN DE LAS BASES DE DATOS
+### PREVISUALIZACI?N DE LAS BASES DE DATOS
 
-```{r}
-# VISUALIZACIÓN DE LOS DATOS 
+```{r dim.met}
+# VISUALIZACI?N DE LOS DATOS 
 
 dim(met.coad.450)
 dim(met.brca.450)
@@ -495,13 +502,13 @@ dim(met.prad.450)
 dim(met.luad.450)
 ```
 
-Los datos de la plataforma de metilación 450k, llamada así por el número de probes que analiza, presenta 3 tipos de probes: cg (CpG loci), ch (non-CpG loci) and rs (SNP assay). Como se puede comprobar todas las bases de datos disponen del mismo número de filas que se corresponden con las probes descargadas y el número de columnas se corresponden con el número de muestras.
+Los datos de la plataforma de metilaci?n 450k, llamada as? por el n?mero de probes que analiza, presenta 3 tipos de probes: cg (CpG loci), ch (non-CpG loci) and rs (SNP assay). Como se puede comprobar todas las bases de datos disponen del mismo n?mero de filas que se corresponden con las probes descargadas y el n?mero de columnas se corresponden con el n?mero de muestras.
 
 
 ### PREPROCESAMIENTO DE LOS DATOS
-A continuación se preprocesan los datos obtenidos de metilación:
+A continuaci?n se preprocesan los datos obtenidos de metilaci?n:
 
-```{r}
+```{r clean.met}
 # PREPROCESAMIENTO DE LOS DATOS
 
 ## eliminamos los valores faltantes NA
@@ -526,11 +533,61 @@ dim(met.luad)
 ```
 
 
-### DIFERENCIAS ENTRE LAS MEDIAS DE METILACIÓN DE MUSTRAS DE TEJIDO NORMAL Y TUMORAL
-Seguidamente se realizan un cálculo descriptivo previo, en el que apreciar si hay diferencias significativas entre la media de metilación etre muestras de tejido normal y tumoral:
+```{r densityPlot.betaVal}
+par(mfrow = c(2,2))
+densityPlot(assay(met.coad), sampGroups =colData(met.coad)$definition, legend = TRUE, main = "COAD beta-values")
+densityPlot(assay(met.brca), sampGroups =colData(met.brca)$definition, legend = TRUE, main = "BRCA beta-values")
+densityPlot(assay(met.luad), sampGroups =colData(met.luad)$definition, legend = TRUE, main = "LUAD beta-values")
+densityPlot(assay(met.prad), sampGroups =colData(met.prad)$definition, legend = TRUE, main = "PRAD beta-values")
+```
 
-```{r}
-# VISUALIZACIÓN DE MEDIAS ENTRE BETAS DE MUESTRAS NORMALES Y TUMORALES PARA COAD
+# PREVISUALIZACIÃ“N DE LOS DATOS
+
+```{r qplot.met.coad}
+# DISTRIBUCIÃ“N EN COAD
+
+qplot(assay(met.coad)[ , grepl( "01A" , colnames( assay(met.coad) ) ) ] , fill=I(rgb(0.1,0.2,0.4,0.6)), main = "Tejido canceroso COAD", xlab = "Beta-values", ylab = "recuento", bins = 50)
+qplot(assay(met.coad)[ , grepl( "11A" , colnames( assay(met.coad) ) ) ] , fill=I(rgb(0.1,0.2,0.4,0.6)), main = "Tejido normal COAD", xlab = "Beta-values", ylab= "recuento", bins = 50 )
+```
+
+En las distribuciÃ³n de los beta values de COAD se aprecian muchos valores cercanos a 0.50, posible razÃ³n por la que al calcular la media entre ambos tipos de muestras y estudiar la significaciÃ³n no se aprecien diferencias significativas el grado de metilaciÃ³n. 
+
+```{rqplot.met.brca}
+# DISTRIBUCIÃ“N EN BRCA
+
+qplot(assay(met.brca)[ , grepl( "01A" , colnames( assay(met.brca) ) ) ] , fill=I(rgb(0.72, 0.201, 0.176,0.6)), main = "Tejido canceroso BRCA", xlab = "Beta-values", ylab = "recuento", bins = 50, ylim = c(0, 50000))
+qplot(assay(met.brca)[ , grepl( "11A" , colnames( assay(met.brca) ) ) ] , fill=I(rgb(0.1,0.2,0.4,0.6)), main = "Tejido normal BRCA", xlab = "Beta-values", ylab= "recuento", bins = 50, ylim = c(0, 50000) )
+```
+
+Comparando los valores beta grÃ¡ficamente de ambos tipos de tejido, apenas hay diferencias entre tejido normal y canceroso en BRCA.
+
+```{r qplot.met.prad}
+# DISTRIBUCIÃ“N EN PRAD
+
+qplot(assay(met.prad)[ , grepl( "01A" , colnames( assay(met.prad) ) ) ] , fill=I(rgb(0.1,0.2,0.4,0.6)), main = "Tejido canceroso PRAD", xlab = "Beta-values", ylab = "recuento", bins = 50)
+qplot(assay(met.prad)[ , grepl( "11A" , colnames( assay(met.prad) ) ) ] , fill=I(rgb(0.1,0.2,0.4,0.6)), main = "Tejido normal PRAD", xlab = "Beta-values", ylab= "recuento", bins = 50 )
+```
+
+En PRAD parece que aumenta los valores beta en las muestras de tejido canceroso en comparaciÃ³n con las muestras de tejido normal, por lo que podrÃ­a presentar un marcado perfil de hipermetilaciÃ³n.
+
+
+
+```{r qplot.met.luad}
+# DISTRIBUCIÃ“N EN LUAD
+
+qplot(assay(met.luad)[ , grepl( "01A" , colnames( assay(met.luad) ) ) ] , fill=I(rgb(0.1,0.2,0.4,0.6)), main = "Tejido canceroso LUAD", xlab = "Beta-values", ylab = "recuento", bins = 50)
+qplot(assay(met.luad)[ , grepl( "11A" , colnames( assay(met.luad) ) ) ] , fill=I(rgb(0.1,0.2,0.4,0.6)), main = "Tejido normal LUAD", xlab = "Beta-values", ylab= "recuento", bins = 50 )
+```
+
+LUAD es la base de datos que contiene menos muestras (N= 28 por tipo de tejido). A pesar de que se aprecia un cambio en la distribuciÃ³n de los valores de beta, en los anÃ¡lsis posteriores no se aprecia diferencias significativas. A pesar de que los cambios observados, a priori, no parecen significativos, hay una cierta migraciÃ³n de valores cercanos a 1 (metilados) en tejido normal y valores mÃ¡s intermedios en tejido canceroso. PodrÃ­a indicar un perfil de hipometilaciÃ³n en este tipo de cÃ¡ncer. 
+
+
+
+### DIFERENCIAS ENTRE LAS MEDIAS DE METILACI?N DE MUSTRAS DE TEJIDO NORMAL Y TUMORAL
+Seguidamente se realizan un c?lculo descriptivo previo, en el que apreciar si hay diferencias significativas entre la media de metilaci?n etre muestras de tejido normal y tumoral. Para ello calcula la media de metilaci?n (la media entre las betas) de cada una de las muestras, a partir de ah? se realizan los diagramas de cajas con estos datos.
+
+```{r meanNT.coad}
+# VISUALIZACI?N DE MEDIAS ENTRE BETAS DE MUESTRAS NORMALES Y TUMORALES PARA COAD
 
 TCGAvisualize_meanMethylation(met.coad,
                               groupCol = "definition",
@@ -539,10 +596,13 @@ TCGAvisualize_meanMethylation(met.coad,
                               filename = 'methylationMean_COAD_norm-tum.pdf')
 ```
 
-Con un p-valor igual a 0.196 no hay diferencias significativas entre el grado de metilación en las muestras normales y tumorales para el tipo de cáncer de colon. Al observar el mínimo y el máximo en ambos grupos se aprecia que las muestras tumorales presentan mayores perfiles de hipo e hipermetilación. 
+Con un p-valor igual a 0.196 no hay diferencias significativas entre el grado de metilaci?n en las muestras normales y tumorales para el tipo de c?ncer de colon. Al observar el m?nimo y el m?ximo en ambos grupos se aprecia que las muestras tumorales presentan mayores perfiles de hipo e hipermetilaci?n. 
 
-```{r}
-# VISUALIZACIÓN DE MEDIAS ENTRE BETAS DE MUESTRAS NORMALES Y TUMORALES PARA BRCA
+
+Confirma lo apreciado con los diagramas de cajas empleados con el paquete TCGAbiolinks, apenas hay diferencias significativas entre el conjunto de probes de COAD.
+
+```{r meanNT.brca}
+# VISUALIZACI?N DE MEDIAS ENTRE BETAS DE MUESTRAS NORMALES Y TUMORALES PARA BRCA
 
 TCGAvisualize_meanMethylation(met.brca,
                               groupCol = "definition",
@@ -551,10 +611,11 @@ TCGAvisualize_meanMethylation(met.brca,
                               filename = 'methylationMean_BRCA_norm-tum.pdf')
 ```
 
-Al igual que ocurre para COAD, no hay diferencias significativas al comparar el grado de metilación entre muestras de tejido normal y canceroso.
+Al igual que ocurre para COAD, no hay diferencias significativas al comparar el grado de metilaci?n entre muestras de tejido normal y canceroso.
 
-```{r}
-# VISUALIZACIÓN DE MEDIAS ENTRE BETAS DE MUESTRAS NORMALES Y TUMORALES PARA PRAD
+
+```{r meanNT.prad}
+# VISUALIZACI?N DE MEDIAS ENTRE BETAS DE MUESTRAS NORMALES Y TUMORALES PARA PRAD
 
 TCGAvisualize_meanMethylation(met.prad,
                               groupCol = "definition",
@@ -563,10 +624,11 @@ TCGAvisualize_meanMethylation(met.prad,
                               filename = 'methylationMean_PRAD_norm-tum.pdf')
 ```
 
-En PRAD **sí que hay diferencias significativas**.
+En PRAD **s? que hay diferencias significativas**.
 
-```{r}
-# VISUALIZACIÓN DE MEDIAS ENTRE BETAS DE MUESTRAS NORMALES Y TUMORALES PARA LUAD
+
+```{r meanNT.luad}
+# VISUALIZACI?N DE MEDIAS ENTRE BETAS DE MUESTRAS NORMALES Y TUMORALES PARA LUAD
 
 TCGAvisualize_meanMethylation(met.luad,
                               groupCol = "definition",
@@ -579,11 +641,11 @@ En LUAD no solo no hay diferencias significativas, sino que es la cohorte en la 
 
 
 ### DIFFERENTIAL METHYLATION REGIONS (DMR)
-A continuación se obtendrán las regiones diferencialmente metiladas en ambos grupos (normal y tumoral), para ello el paquete TCGABiolinks dispone de una función `TCGAanalyze_DMR`. Esta función calcula en primer lugar la diferencia entre la media de metilización (media de los valores beta) de cada grupo para cada probe. Seguidamente, calcula la expresión diferencial empleando el test de Wilcoxon ajustado por el método de Menjamini-Hochberg. Se especifican además el valor umbral del p-valor ajustado y la diferencia absoluta mínima entre los valores beta.
+A continuaci?n se obtendr?n las regiones diferencialmente metiladas en ambos grupos (normal y tumoral), para ello el paquete TCGABiolinks dispone de una funci?n `TCGAanalyze_DMR`. Esta funci?n calcula en primer lugar la diferencia entre la media de metilizaci?n (media de los valores beta) de cada grupo para cada probe. Seguidamente, calcula la expresi?n diferencial empleando el test de Wilcoxon ajustado por el m?todo de Benjamini-Hochberg. Se especifican adem?s el valor umbral del p-valor ajustado y la diferencia absoluta m?nima entre los valores beta.
 
 1. COAD
 
-```{r}
+```{r dmr.coad.tcga}
 # CALCULO DMR (Differentially Methylation Region) para COAD
 
 met.coad <- TCGAanalyze_DMR(met.coad,
@@ -598,10 +660,10 @@ met.coad <- TCGAanalyze_DMR(met.coad,
 ```
 
 
-```{r}
+```{r dmr.sig.coad}
 dmr_coad <- read.csv("DMR_results_COAD_definition_Primary.solid.Tumor_Solid.Tissue.Normal_pcut_0.01_meancut_0.25.csv")
 
-## exploración de los datos de metilación diferencial entre muestras normales y tumorales
+## exploraci?n de los datos de metilaci?n diferencial entre muestras normales y tumorales
 dim(dmr_coad)
 length(which(dmr_coad$status.Solid.Tissue.Normal.Primary.solid.Tumor != "Not Significant"))
 
@@ -613,10 +675,25 @@ dmr_coad_sel <- dmr_coad[dmr_coad$status.Solid.Tissue.Normal.Primary.solid.Tumor
 dmr_coad_sel$status.Solid.Tissue.Normal.Primary.solid.Tumor <- factor(dmr_coad_sel$status.Solid.Tissue.Normal.Primary.solid.Tumor, levels = c("Hypermethylated in Primary solid Tumor", "Hypomethylated in Primary solid Tumor"), labels = c('Hypermethylated', 'Hypomethylated'))
 ```
 
+```{r ttest.abc.coad}
+ttest <- ttest_data(assay(met.coad), 1, 30, 31, 60, 1e-2)
+nrow(ttest)
+ttest2 <- ttest_data(Mval.coad, 1, 30, 31, 60, 1e-2)
+nrow(ttest2)
+```
+
+```{r check.sig.probes.coad}
+sig.coad <- ntCOAD[which(ntCOAD$adj.P.Val <= 0.01),]
+sig2 <- p.valEfit[which(p.valEfit[,1]<= 0.01),]
+length(which(rownames(sig.coad) %in% rownames(sig2)))
+length(which(rownames(sig.coad) %in% dmr_coad_sel$probeID))
+length(which(rownames(sig.coad) %in% rownames(ttest2)))
+length(which(dmr_coad_sel$probeID %in% rownames(ttest2)))
+```
 
 2. BRCA
 
-```{r}
+```{r dmr.brca.tcga}
 # CALCULO DMR (Differentially Methylation Region) para BRCA
 
 met.brca <-TCGAanalyze_DMR(met.brca,
@@ -630,10 +707,10 @@ met.brca <-TCGAanalyze_DMR(met.brca,
                 cores = 1)
 ```
 
-```{r}
+```{r dmr.sig.brca}
 dmr_brca <- read.csv("DMR_results_BRCA_definition_Primary.solid.Tumor_Solid.Tissue.Normal_pcut_0.01_meancut_0.25.csv")
 
-## exploración de los datos de metilación diferencial entre muestras normales y tumorales
+## exploraci?n de los datos de metilaci?n diferencial entre muestras normales y tumorales
 dim(dmr_brca)
 length(which(dmr_brca$status.Solid.Tissue.Normal.Primary.solid.Tumor != "Not Significant"))
 
@@ -641,12 +718,30 @@ summary(dmr_brca[cols])
 
 dmr_brca_sel <- dmr_brca[dmr_coad$status.Solid.Tissue.Normal.Primary.solid.Tumor %in% c("Hypermethylated in Primary solid Tumor", "Hypomethylated in Primary solid Tumor"), -c(5:8)]
 ```
-Parece que COAD presenta mayor grado de metilación que BRCA, y en ambos casos es mayor el número de regiones hipermetiladas que hipometiladas.
+Parece que COAD presenta mayor grado de metilaci?n que BRCA, y en ambos casos es mayor el n?mero de regiones hipermetiladas que hipometiladas.
+
+
+```{r ttest.abc.brca}
+ttest.brca <- ttest_data(assay(met.brca), 1, 50, 51, 100, 1e-2)
+nrow(ttest.brca)
+ttest2.brca <- ttest_data(Mval.brca, 1, 50, 51, 100, 1e-2)
+nrow(ttest2.brca)
+```
+
+
+```{r check.sig.probes.brca}
+sig.brca <- ntBRCA[which(ntBRCA$adj.P.Val <= 0.01),]
+sig2 <- p.valEfit[which(p.valEfit[,2]<= 0.01),]
+length(which(rownames(sig.brca) %in% rownames(sig2)))
+length(which(rownames(sig.brca) %in% dmr_brca_sel$probeID))
+length(which(rownames(sig.brca) %in% rownames(ttest2.brca)))
+length(which(dmr_brca_sel$probeID %in% rownames(ttest2.brca)))
+```
 
 
 3. PRAD
 
-```{r}
+```{r dmr.prad.tcga}
 # CALCULO DMR (Differentially Methylation Region) para BRCA
 
 met.prad <-TCGAanalyze_DMR(met.prad,
@@ -660,10 +755,10 @@ met.prad <-TCGAanalyze_DMR(met.prad,
                 cores = 1)
 ```
 
-```{r}
+```{r dmr.sig.prad}
 dmr_prad <- read.csv("DMR_results_PRAD_definition_Primary.solid.Tumor_Solid.Tissue.Normal_pcut_0.01_meancut_0.25.csv")
 
-## exploración de los datos de metilación diferencial entre muestras normales y tumorales
+## exploraci?n de los datos de metilaci?n diferencial entre muestras normales y tumorales
 dim(dmr_prad)
 length(which(dmr_prad$status.Solid.Tissue.Normal.Primary.solid.Tumor != "Not Significant"))
 
@@ -673,9 +768,27 @@ dmr_prad_sel <- dmr_prad[dmr_prad$status.Solid.Tissue.Normal.Primary.solid.Tumor
 ```
 
 
+```{r ttest.abc.prac}
+ttest.prad <- ttest_data(assay(met.prad), 1, 50, 51, 100, 1e-2)
+nrow(ttest.prad)
+ttest2.prad <- ttest_data(Mval.prad, 1, 50, 51, 100, 1e-2)
+nrow(ttest2.prad)
+```
+
+```{r check.probes.sig.prad}
+sig.prad <- ntPRAD[which(ntPRAD$adj.P.Val <= 0.01),]
+sig2 <- p.valEfit[which(p.valEfit[,4]<= 0.01),]
+length(which(rownames(sig.prad) %in% rownames(sig2)))
+length(which(rownames(sig.prad) %in% dmr_prad_sel$probeID))
+length(which(rownames(sig.prad) %in% rownames(ttest2.prad)))
+length(which(dmr_prad_sel$probeID %in% rownames(ttest2.prad)))
+```
+
+
+
 4. LUAD
 
-```{r}
+```{r dmr.luad.tcga}
 # CALCULO DMR (Differentially Methylation Region) para BRCA
 
 met.luad <-TCGAanalyze_DMR(met.luad,
@@ -689,10 +802,10 @@ met.luad <-TCGAanalyze_DMR(met.luad,
                 cores = 1)
 ```
 
-```{r}
+```{r dmr.sig.luad}
 dmr_luad <- read.csv("DMR_results_LUAD_definition_Primary.solid.Tumor_Solid.Tissue.Normal_pcut_0.01_meancut_0.25.csv")
 
-## exploración de los datos de metilación diferencial entre muestras normales y tumorales
+## exploraci?n de los datos de metilaci?n diferencial entre muestras normales y tumorales
 dim(dmr_luad)
 length(which(dmr_luad$status.Primary.solid.Tumor.Solid.Tissue.Normal != "Not Significant"))
 
@@ -701,25 +814,40 @@ summary(dmr_luad[cols])
 dmr_luad_sel <- dmr_luad[dmr_prad$status.Solid.Tissue.Normal.Primary.solid.Tumor %in% c("Hypermethylated in Primary solid Tumor", "Hypomethylated in Primary solid Tumor"), -c(5:8)]
 ```
 
+```{r ttest.abc.luad}
+ttest.luad <- ttest_data(assay(met.luad), 1, 28, 29, 56, 1e-2)
+nrow(ttest.luad)
+#ttest2.luad <- ttest_data(Mval.luad, 1, 28, 29, 56, 1e-2)
+#nrow(ttest2.luad)
+```
 
-## INTEGRAR EPIGENÓMICA CON TRANSCRIPTÓMICA
 
-A continuación se integran los datos obtenidos del metiloma con los datos de expresión, para comprobar qué genes alteran su expresión debdido al perfil de metilación (posteriormente buscar si alguno de estos genes presentan mutaciones características en alguna de las cohortes, especialmente de los genes candidatos).
+```{r check.sig.probes.luad}
+sig.luad <- ntLUAD[which(ntLUAD$adj.P.Val <= 0.01),]
+sig2 <- p.valEfit[which(p.valEfit[,3]<= 0.01),]
+length(which(rownames(sig.luad) %in% rownames(sig2)))
+length(which(rownames(sig.luad) %in% dmr_luad_sel$probeID))
+length(which(rownames(sig.luad) %in% rownames(ttest.luad)))
+length(which(dmr_luad_sel$probeID %in% rownames(ttest.luad)))
+```
+
+
+## INTEGRAR EPIGEN?MICA CON TRANSCRIPT?MICA
+
+A continuaci?n se integran los datos obtenidos del metiloma con los datos de expresi?n, para comprobar qu? genes alteran su expresi?n debdido al perfil de metilaci?n (posteriormente buscar si alguno de estos genes presentan mutaciones caracter?sticas en alguna de las cohortes, especialmente de los genes candidatos).
 
 
 1. COAD
 
-```{r}
-dataNorm <-  TCGAanalyze_Normalization(tabDF = exp.coad, geneInfo =  geneInfo, method = 'gcContent') 
-dataNorm2 <-  TCGAanalyze_Normalization(tabDF = exp.coad, geneInfo =  geneInfo, method = 'geneLength')
-dataFilt <- TCGAanalyze_Filtering(tabDF = dataNorm2,
-                                  method = "quantile", 
-                                  qnt.cut =  0.25)
-par(mfrow=c(2,2))
-boxplot(assay(exp.coad), main = "Datos sin normalizar")
-boxplot(dataNorm, main = "Método GC content")
-boxplot(dataNorm2, main = " Método geneLength")
-boxplot(dataFilt, main = "Datos normalizads \n + filtrados")
+```{r starburst.coad}
+#dataNorm <-  TCGAanalyze_Normalization(tabDF = exp.coad, geneInfo =  geneInfo, method = 'gcContent') 
+#dataNorm2 <-  TCGAanalyze_Normalization(tabDF = exp.coad, geneInfo =  geneInfo, method = 'geneLength')
+#dataFilt <- TCGAanalyze_Filtering(tabDF = dataNorm2, method = "quantile", qnt.cut =  0.25)
+#par(mfrow=c(2,2))
+#boxplot(assay(exp.coad), main = "Datos sin normalizar")
+#boxplot(dataNorm, main = "M?todo GC content")
+#boxplot(dataNorm2, main = " M?todo geneLength")
+#boxplot(dataFilt, main = "Datos normalizads \n + filtrados")
 
 
 COAD.expMatrix <- assay(exp.coad)
@@ -740,38 +868,37 @@ dea.coad.FiltLevel <- TCGAanalyze_LevelTab(dea.coad,"Tumor","Normal",
                                           COAD.expMatrix[,samplesTP], COAD.expMatrix[,samplesNT])
 head(dea.coad.FiltLevel)
 
-starburst.coad <- TCGAvisualize_starburst(met.coad, 
+starburst.coad_2 <- TCGAvisualize_starburst(met.coad, 
                                      dea.coad,
                                      group1 = "Solid Tissue Normal",
                                      group2 = "Primary solid Tumor",
                                      met.platform = "450K",
                                      genome = "hg19",
-                                     filename = "starbustCOAD.png",
-                                     met.p.cut = 10^-5, 
-                                     exp.p.cut = 10^-5,
+                                     filename = "starbustCOAD_sin2.png",
+                                     met.p.cut = 10^-2, 
+                                     exp.p.cut = 10^-2,
                                      diffmean.cut = 0.25,
                                      logFC.cut = 1,width = 15,height = 10,
-                                     names = TRUE)
+                                     names = FALSE)
 # Colaprico et al. 2015: logFC.cut >=3
 
-dim(starburst.coad)
-table(starburst.coad['starburst.status'])
+dim(starburst.coad_2)
+table(starburst.coad_2['starburst.status'])
 ```
 
 
 2. BRCA
 
-```{r}
-dataNorm <-  TCGAanalyze_Normalization(tabDF = exp.brca, geneInfo =  geneInfo, method = 'gcContent') 
-dataNorm2 <-  TCGAanalyze_Normalization(tabDF = exp.brca, geneInfo =  geneInfo, method = 'geneLength')
-dataFilt <- TCGAanalyze_Filtering(tabDF = dataNorm2,
-                                  method = "quantile", 
-                                  qnt.cut =  0.25)
-par(mfrow=c(2,2))
-boxplot(assay(exp.brca), main = "Datos sin normalizar")
-boxplot(dataNorm, main = "Método GC content")
-boxplot(dataNorm2, main = " Método geneLength")
-boxplot(dataFilt, main = "Datos normalizads \n + filtrados")
+```{r starburst.brca}
+#dataNorm <-  TCGAanalyze_Normalization(tabDF = exp.brca, geneInfo =  geneInfo, method = 'gcContent') 
+#dataNorm2 <-  TCGAanalyze_Normalization(tabDF = exp.brca, geneInfo =  geneInfo, method = 'geneLength')
+#dataFilt <- TCGAanalyze_Filtering(tabDF = dataNorm2, method = "quantile", qnt.cut =  0.25)
+
+#par(mfrow=c(2,2))
+#boxplot(assay(exp.brca), main = "Datos sin normalizar")
+#boxplot(dataNorm, main = "M?todo GC content")
+#boxplot(dataNorm2, main = " M?todo geneLength")
+#boxplot(dataFilt, main = "Datos normalizads \n + filtrados")
 
 
 BRCA.expMatrix <- assay(exp.brca)
@@ -792,28 +919,28 @@ dea.brca.FiltLevel <- TCGAanalyze_LevelTab(dea.brca,"Tumor","Normal",
                                           BRCA.expMatrix[,samplesTP], BRCA.expMatrix[,samplesNT])
 head(dea.brca.FiltLevel)
 
-starburst.coad <- TCGAvisualize_starburst(met.brca, 
+starburst.brca_2 <- TCGAvisualize_starburst(met.brca, 
                                      dea.brca,
                                      group1 = "Solid Tissue Normal",
                                      group2 = "Primary solid Tumor",
                                      met.platform = "450K",
                                      genome = "hg19",
-                                     filename = "starbustBRCA.png",
-                                     met.p.cut = 10^-5, 
-                                     exp.p.cut = 10^-5,
+                                     filename = "starbustBRCA_sin2.png",
+                                     met.p.cut = 10^-2, 
+                                     exp.p.cut = 10^-2,
                                      diffmean.cut = 0.25,
                                      logFC.cut = 1,width = 15,height = 10,
-                                     names = TRUE)
+                                     names = FALSE)
 # Colaprico et al. 2015: logFC.cut >=3
 
-dim(starburst.coad)
-table(starburst.coad['starburst.status'])
+dim(starburst.brca)
+table(starburst.brca_2['starburst.status'])
 ```
 
 
 3. PRAD
 
-```{r}
+```{r starburst.prad}
 PRAD.expMatrix <- assay(exp.prad)
 samplesNT <- which(exp.prad$definition == 'Solid Tissue Normal')
 samplesTP <- which(exp.prad$definition == 'Primary solid Tumor')
@@ -832,27 +959,27 @@ dea.prad.FiltLevel <- TCGAanalyze_LevelTab(dea.prad,"Tumor","Normal",
                                           PRAD.expMatrix[,samplesTP], PRAD.expMatrix[,samplesNT])
 head(dea.prad.FiltLevel)
 
-starburst.prad <- TCGAvisualize_starburst(met.prad, 
+starburst.prad_2 <- TCGAvisualize_starburst(met.prad, 
                                      dea.brca,
                                      group1 = "Solid Tissue Normal",
                                      group2 = "Primary solid Tumor",
                                      met.platform = "450K",
                                      genome = "hg19",
-                                     filename = "starbustPRAD.png",
-                                     met.p.cut = 10^-5, 
-                                     exp.p.cut = 10^-5,
+                                     filename = "starbustPRAD_sin2.png",
+                                     met.p.cut = 10^-2, 
+                                     exp.p.cut = 10^-2,
                                      diffmean.cut = 0.25,
                                      logFC.cut = 1,width = 15,height = 10,
-                                     names = TRUE)
+                                     names = FALSE)
 # Colaprico et al. 2015: logFC.cut >=3
 
-dim(starburst.prad)
-table(starburst.prad['starburst.status'])
+dim(starburst.prad_2)
+table(starburst.prad_2['starburst.status'])
 ```
 
 
 4. LUAD
-```{r}
+```{r starburst.luad}
 LUAD.expMatrix <- assay(exp.luad)
 samplesNT <- which(exp.luad$definition == 'Solid Tissue Normal')
 samplesTP <- which(exp.luad$definition == 'Primary solid Tumor')
@@ -871,27 +998,269 @@ dea.luad.FiltLevel <- TCGAanalyze_LevelTab(dea.luad,"Tumor","Normal",
                                           LUAD.expMatrix[,samplesTP], LUAD.expMatrix[,samplesNT])
 head(dea.luad.FiltLevel)
 
-starburst.luad <- TCGAvisualize_starburst(met.luad, 
+starburst.luad_2 <- TCGAvisualize_starburst(met.luad, 
                                      dea.luad,
                                      group1 = "Solid Tissue Normal",
                                      group2 = "Primary solid Tumor",
                                      met.platform = "450K",
                                      genome = "hg19",
-                                     filename = "starbustLUAD.png",
-                                     met.p.cut = 10^-5, 
-                                     exp.p.cut = 10^-5,
+                                     filename = "starbustLUAD_sin2.png",
+                                     met.p.cut = 10^-2, 
+                                     exp.p.cut = 10^-2,
                                      diffmean.cut = 0.25,
                                      logFC.cut = 1,width = 15,height = 10,
-                                     names = TRUE)
+                                     names = FALSE)
 # Colaprico et al. 2015: logFC.cut >=3
 
-dim(starburst.luad)
-table(starburst.luad['starburst.status'])
+dim(starburst.luad_2)
+table(starburst.luad_2['starburst.status'])
+```
+
+
+## PROBES DIFERENCIALES ENTRE LOS DISTINTOS GRUPOS DE ESTUDIO: tumoral-normal + cohortes
+
+A partir de los datos preprocesados de metilaci?n `met.coad`, que contienen los valores beta de metilaci?n de cada una de las muestras. En primer lugar se calculan los valores M, m?s adaptados a los c?lculos estad?sticos.
+
+```{r beta2m.func}
+##' function to transform the beta values in M values
+##' @title 
+##' @param beta the beta values
+##' @return a dataframe with the m values for all probes
+##' @author Lorena Ponce
+
+beta2m <- function(beta) {
+    m <- log2(beta/(1 - beta))
+    return(m)
+}
+```
+
+
+```{r get.mVal}
+# Transform the beta values in M values
+
+Mval.coad <- apply(assay(met.coad), c(1,2), beta2m)
+Mval.brca <- apply(assay(met.brca), c(1,2), beta2m)
+Mval.prad <- apply(assay(met.prad), c(1,2), beta2m)
+Mval.luad <- apply(assay(met.luad), c(1,2), beta2m)
+
+# Combine all the dataframes 
+
+Mval1 <- merge(Mval.coad, Mval.brca, by='row.names', all = T)
+Mval2 <- merge(Mval.prad, Mval.luad, by='row.names', all = T)
+MvalF <- merge(Mval1, Mval2, by = "Row.names", all = T)
+MvalF <- na.omit(MvalF)
+rownames(MvalF) <- MvalF$Row.names
+MvalF <- MvalF[-1]
+```
+
+```{r limma}
+# Use limma without the means 
+sampleType <- c(rep("tumorCOAD",30), rep("normalCOAD", 30), rep("tumorBRCA", 50), rep("normalBRCA", 50), rep("tumorPRAD", 50), rep("normalPRAD", 50), rep("tumorLUAD",28), rep("normalLUAD",28))
+
+design <- model.matrix(~0+sampleType)
+colnames(design) <-sort(unique(sampleType))
+
+fit <- lmFit(MvalF, design)
+
+cont.matrix <- makeContrasts (
+      COADsamples = tumorCOAD-normalCOAD,
+      BRCAsamples = tumorBRCA-normalBRCA,
+      LUADsamples = tumorLUAD-normalLUAD,
+      PRADsamples = tumorPRAD-normalPRAD,
+      COAD_BRCA = tumorCOAD-tumorBRCA,
+      COAD_LUAD = tumorCOAD-tumorLUAD,
+      COAD_PRAD = tumorCOAD-tumorPRAD,
+      BRCA_LUAD = tumorBRCA-tumorLUAD,
+      BRCA_PRAD = tumorBRCA-tumorPRAD,
+      PRAD_LUAD = tumorPRAD-tumorLUAD,
+      levels=design)
+
+fit2 <- contrasts.fit(fit, cont.matrix)
+efit <- eBayes(fit2)
+
+#ann450kSub <- ann450k[match(rownames(MvalF),ann450k$Name), c(1:4,12:19,24:ncol(ann450k))]
+summary(decideTests(efit, adjust.method = "BH", p.value = 0.01))
+
+p.valEfit <- efit$p.value
+```
+Valores muy altos en comparaci?n con los obtenidos a partir de TCGAanlyze_DMR. A pesar de ello parece que no comparten un mismo perfil de metilaci?n las diferents 
+
+```{r topTableNT}
+#ann450kSub <- ann450k[match(rownames(MvalF),ann450k$Name),c(1:4,12:19,24:ncol(ann450k))]
+#DMPs <- topTable(fit2, num=Inf, coef=1, genelist=ann450kSub)
+
+ntCOAD <- topTable (efit, number=nrow(efit), coef="COADsamples", adjust="fdr")#, genelist=ann450kSub
+ntBRCA <- topTable (efit, number=nrow(efit), coef="BRCAsamples", adjust="fdr")
+ntPRAD <- topTable (efit, number=nrow(efit), coef="PRADsamples", adjust="fdr")
+ntLUAD <- topTable (efit, number=nrow(efit), coef="LUADsamples", adjust="fdr")
+
+
+
+cat ("En la comparaciÃ³n 'normal vs tumor' en COAD:", sum(ntCOAD$adj.P.Val<=0.01),"\n")
+cat ("En la comparaciÃ³n 'normal vs tumor' en BRCA:", sum(ntBRCA$adj.P.Val<=0.01),"\n")
+cat ("En la comparaciÃ³n 'normal vs tumor' en PRAD:", sum(ntPRAD$adj.P.Val<=0.01),"\n")
+cat ("En la comparaciÃ³n 'normal vs tumor' en LUAD: ", sum(ntLUAD$adj.P.Val<=0.01),"\n")
+
+```
+
+```{r volcanoPlot}
+for(i in 1:4){
+  compName <-colnames(cont.matrix)[i]
+  file=paste("volcanoPlot", compName, ".pdf", sep="")
+  pdf(file=file.path("E:/Escritorio/Epigenetics & cancer", file), paper="special", width=6, height=6)
+  volcanoplot(efit, coef=i, highlight=10, 
+            main=paste("Differentially methylated probes",compName, sep="\n"))
+  lp <- -log10(efit$p.value[,i])
+  ord <- order(lp, decreasing = TRUE)[1:10]
+  points(fit2$coef[ord,i], lp[ord], pch = 16, cex = 0.45, col = "blue")
+  abline(v=c(-1,1))
+  dev.off()
+  cat("\\includegraphics{", file, "}\n\n", sep="")
+}
 ```
 
 
 
-# ANÁLISIS MUTACIONAL
+## COMPARACIÃ“N DE LOS PERFILES DE METILACÃ“N ENTRE COHORTES
+
+
+```{r rowMeans.betaVal}
+# Get row means of M values 
+
+rowMean.coad <- data.frame(normalMeans.COAD = (rowMeans(Mval.coad[,31:60])), tumorMeans.COAD =(rowMeans(Mval.coad[,1:30])),  row.names = row.names(Mval.coad))
+rowMean.brca <- data.frame(normalMeans.BRCA = (rowMeans(Mval.brca[,51:100])), tumorMeans.BRCA =(rowMeans(Mval.brca[,1:50])),  row.names = row.names(Mval.brca))
+rowMean.prad <- data.frame(normalMeans.PRAD = (rowMeans(Mval.prad[,51:100])), tumorMeans.PRAD =(rowMeans(Mval.prad[,1:50])),  row.names = row.names(Mval.prad))
+rowMean.luad <- data.frame(normalMeans.LUAD = (rowMeans(Mval.luad[,29:56])), tumorMeans.LUAD =(rowMeans(Mval.luad[,1:28])),  row.names = row.names(Mval.luad))
+
+
+# Combine the rowMean of all cohorts
+
+rowMean_Mval <- merge(rowMean.brca, rowMean.coad, by='row.names', all = T)
+rowMean_Mval2 <- merge(rowMean.luad, rowMean.prad, by='row.names', all = T)
+Mval <- merge(rowMean_Mval, rowMean_Mval2, by = "Row.names", all = T)
+dim(Mval)
+Mval_t <- na.omit(Mval)
+rownames(Mval_t) <- Mval_t$Row.names
+Mval_t <- Mval_t[-1]
+dim(Mval_t)
+cpg <- row.names(Mval_t)
+```
+
+
+En primer lugar, para comparar las diferencias entre los distintos tipos de tumores vamos a comprobar la representaciÃ³n de las medias en un grÃ¡fico MDS:
+
+```{r plotMDS}
+plotMDS(Mval_t, top=1000, gene.selection="common", col=brewer.pal(ncol(Mval_t), "Spectral"))
+abline(v=0, h=0, col="blue")
+legend("top", legend=colnames(Mval_t), text.col=brewer.pal(ncol(Mval_t), "Spectral"), bg="white", cex=0.7)
+```
+
+Las componentes principales parecen indicar que las medias de los tumores se encuentran, en general, mÃ¡s cercanos a los valores positivos de la segunda componente principal (excepto tumor LUAD), mientras que las muestras normales se encontrarÃ­an mÃ¡s abajo en el grÃ¡fico (excepto normal PRAD). Por otra parte, parece que la primera componete principal divide las muestras de COAD con el resto de tipos de tumores, a excepciÃ³n de las muestras tumorales de LUAD que se sitÃºan cercanas a 0. 
+
+Al volver a comprobar los valores obtenidos con limma vemos que, desde el mismo punto de partida, hay menos diferencias significativas al comparar COAD-BRCA y BRCA-PRAD, seguido de COAD-PRAD. En este caso Ãºnicamente se compararan las muestras tumorales, para comprobar si presentan los mismos o diferentes perfiles de metilaciÃ³n. Por lo qeu coincidirÃ­a con el grÃ¡fico MDS, donde las medias del tejido tumoral localizadas en los valores positivos de la segunda componente principal presentan menos prodes significativamente diferentes. Por el contrario, las que mÃ¡s diferencias significativas presentan son las comparadas con LUAD. 
+
+```{r}
+summary(decideTests(efit, adjust.method = "BH", p.value = 0.01))
+```
+
+
+```{r }
+sig.probes <- unique(c(row.names(sig.coad),row.names(sig.brca), row.names(sig.luad), row.names(sig.prad)))
+class <- c(rep("tumor-COAD", 30), rep("tumor-BRCA", 49), rep("tumor-PRAD", 50),  rep("tumor-LUAD", 25))
+
+
+MvalF_t <- MvalF[, grep("01A", colnames(MvalF))]
+MvalF2 <- MvalF2[which(row.names(MvalF2) %in% sig.probes),]
+MvalF2 <- MvalF2[sig.probes,]
+head(which(row.names(MvalF2) %in% sig.probes))
+MvalF2 <- MvalF2[-c(4,5,8,9,10),]
+
+
+MvalF_t["class",] <- class
+
+MvalF_t <- t(MvalF_t)
+MvalF_t <- transposeBigData(MvalF_t)
+```
+
+
+```{r}
+#mds <- cmdscale(dist(scapulae[,-8]),eig=T
+```
+
+
+
+```{r topTable.cohorts}
+#ann450kSub <- ann450k[match(rownames(MvalF),ann450k$Name),c(1:4,12:19,24:ncol(ann450k))]
+#DMPs <- topTable(fit2, num=Inf, coef=1, genelist=ann450kSub)
+
+COADvsBRCA <- topTable (efit, number=nrow(efit), coef="COAD_BRCA", adjust="fdr")
+COADvsPRAD <- topTable (efit, number=nrow(efit), coef="COAD_PRAD", adjust="fdr")
+COADvsLUAD <- topTable (efit, number=nrow(efit), coef="COAD_LUAD", adjust="fdr")
+BRCAvsLUAD <- topTable (efit, number=nrow(efit), coef="BRCA_LUAD", adjust="fdr")
+BRCAvsPRAD <- topTable (efit, number=nrow(efit), coef="BRCA_PRAD", adjust="fdr")
+PRADvsLUAD <- topTable (efit, number=nrow(efit), coef="PRAD_LUAD", adjust="fdr")
+```
+
+## CÃ“DIGO NO USADO
+
+```{r}
+##NOT USED!!
+# DMR with limma
+
+#my.targets <-read.AnnotatedDataFrame("targets.txt", header = TRUE) 
+sampleType <- colnames(Mval_t)
+tumorType <- c(rep("BRCA", 2), rep("COAD", 2), rep("LUAD", 2), rep("PRAD", 2))
+tissueType <- c(rep(c("normal", "tumor"), 4))
+
+design <- model.matrix(~0+sampleType)
+colnames(design) <- sampleType
+print(design)
+
+fit <- lmFit(Mval_t, design)
+
+cont.matrix <- makeContrasts (
+      COADsamples = tumorMeans.COAD-normalMeans.COAD,
+      BRCAsamples = tumorMeans.BRCA-normalMeans.BRCA,
+      LUADsamples = tumorMeans.LUAD-normalMeans.LUAD,
+      PRADsamples = tumorMeans.PRAD-normalMeans.PRAD,
+      COAD_BRCA = tumorMeans.COAD-tumorMeans.BRCA,
+      COAD_LUAD = tumorMeans.COAD-tumorMeans.LUAD,
+      COAD_PRAD = tumorMeans.COAD-tumorMeans.PRAD,
+      BRCA_LUAD = tumorMeans.BRCA-tumorMeans.LUAD,
+      BRCA_PRAD = tumorMeans.BRCA-tumorMeans.PRAD,
+      PRAD_LUAD = tumorMeans.PRAD-tumorMeans.LUAD,
+      levels=design)
+
+fit2 <- contrasts.fit(fit, cont.matrix)
+efit <- eBayes(fit2)
+```
+
+
+
+```{r}
+# Get the difference between tumor and normal and save it in a data.frame
+
+z <- unique(strtrim(colnames(Mval.coad), 12))
+
+deltaVal <- data.frame(matrix(nrow = nrow(Mval.coad), ncol = ncol(Mval.coad)))
+colnames(deltaVal) <- z
+
+for (row in 1:nrow(Mval.coad)){
+  for (i in 1:length(z)) {
+    x <- which(strtrim(colnames(Mval.coad), 12) == z[i])
+    deltaVal[row,i] <- round(Mval.coad[row, x[2]] - Mval.coad[row, x[1]], 2)
+    if (i == 30 & row == nrow(Mval.coad)) cat("Done")
+    progress(i, row)
+  }
+}
+```
+
+
+
+
+
+
+# AN?LISIS MUTACIONAL
 
 ```{r}
 mut.coad <- as.data.frame(assay(maf.coad))
