@@ -76,7 +76,7 @@ commonBarcodes <- function(project, query, n){
     commonMetExp <- sample(commonMetExp, n)
   }
   
-  named_tumors <- ids_tumora
+  named_tumors <- ids_tumor
   names(named_tumors) <- strtrim(ids_tumor, 12)
   named_normals <- ids_normal
   names(named_normals) <- strtrim(ids_normal, 12)
@@ -1089,19 +1089,27 @@ Valores muy altos en comparaci?n con los obtenidos a partir de TCGAanlyze_DMR. A
 #ann450kSub <- ann450k[match(rownames(MvalF),ann450k$Name),c(1:4,12:19,24:ncol(ann450k))]
 #DMPs <- topTable(fit2, num=Inf, coef=1, genelist=ann450kSub)
 
-ntCOAD <- topTable (efit, number=nrow(efit), coef="COADsamples", adjust="fdr")#, genelist=ann450kSub
-ntBRCA <- topTable (efit, number=nrow(efit), coef="BRCAsamples", adjust="fdr")
-ntPRAD <- topTable (efit, number=nrow(efit), coef="PRADsamples", adjust="fdr")
-ntLUAD <- topTable (efit, number=nrow(efit), coef="LUADsamples", adjust="fdr")
+ntCOAD <- topTable (efit, number=nrow(efit), coef="COADsamples", adjust="fdr", lfc = 2^0.2, p.value = 0.01)#, genelist=ann450kSub
+ntBRCA <- topTable (efit, number=nrow(efit), coef="BRCAsamples", adjust="fdr", lfc = 2^0.2, p.value = 0.01)
+ntPRAD <- topTable (efit, number=nrow(efit), coef="PRADsamples", adjust="fdr", lfc = 2^0.2, p.value = 0.01)
+ntLUAD <- topTable (efit, number=nrow(efit), coef="LUADsamples", adjust="fdr", lfc = 2^0.2, p.value = 0.01)
+```
 
 
-
+```{r}
 cat ("En la comparación 'normal vs tumor' en COAD:", sum(ntCOAD$adj.P.Val<=0.01),"\n")
 cat ("En la comparación 'normal vs tumor' en BRCA:", sum(ntBRCA$adj.P.Val<=0.01),"\n")
 cat ("En la comparación 'normal vs tumor' en PRAD:", sum(ntPRAD$adj.P.Val<=0.01),"\n")
-cat ("En la comparación 'normal vs tumor' en LUAD: ", sum(ntLUAD$adj.P.Val<=0.01),"\n")
-
+cat ("En la comparación 'normal vs tumor' en LUAD:", sum(ntLUAD$adj.P.Val<=0.01),"\n")
 ```
+
+
+```{r}
+m3 <-as.data.frame(merge(ann450kSub, ntCOAD, by.x = "Name", by.y = "row.names", all.x = FALSE, all.y = TRUE))
+```
+
+
+
 
 ```{r volcanoPlot}
 for(i in 1:4){
@@ -1153,6 +1161,7 @@ En primer lugar, para comparar las diferencias entre los distintos tipos de tumo
 plotMDS(Mval_t, top=1000, gene.selection="common", col=brewer.pal(ncol(Mval_t), "Spectral"))
 abline(v=0, h=0, col="blue")
 legend("top", legend=colnames(Mval_t), text.col=brewer.pal(ncol(Mval_t), "Spectral"), bg="white", cex=0.7)
+dev.print(pdf, 'MDSmean.pdf')
 ```
 
 Las componentes principales parecen indicar que las medias de los tumores se encuentran, en general, más cercanos a los valores positivos de la segunda componente principal (excepto tumor LUAD), mientras que las muestras normales se encontrarían más abajo en el gráfico (excepto normal PRAD). Por otra parte, parece que la primera componete principal divide las muestras de COAD con el resto de tipos de tumores, a excepción de las muestras tumorales de LUAD que se sitúan cercanas a 0. 
@@ -1166,25 +1175,148 @@ summary(decideTests(efit, adjust.method = "BH", p.value = 0.01))
 
 ```{r }
 sig.probes <- unique(c(row.names(sig.coad),row.names(sig.brca), row.names(sig.luad), row.names(sig.prad)))
-class <- c(rep("tumor-COAD", 30), rep("tumor-BRCA", 49), rep("tumor-PRAD", 50),  rep("tumor-LUAD", 25))
+class <- as.data.frame(c(rep("tumor-COAD", 30), rep("tumor-BRCA", 49), rep("tumor-PRAD", 50),  rep("tumor-LUAD", 25)))
+
+MvalF2 <- MvalF[is.finite(rowSums(MvalF)),]
+MvalF3 <- MvalF2[, grep("01A", colnames(MvalF2))]
+#MvalF2 <- MvalF2[which(row.names(MvalF2) %in% sig.probes),]
+#MvalF2 <- MvalF2[sig.probes,]
+#head(which(row.names(MvalF2) %in% sig.probes))
+#MvalF2 <- MvalF2[-c(4,5,8,9,10),]
+
+Mvalt <- t(MvalF3)
+Mvalt <- cbind(Mvalt, class)
+colnames(Mvalt)[368647]<- "class"
+disE = dist(Mvalt[,-368647])
+```
+
+El cálculo MDs a partir de la distancias Euclídeas de todas las muestras tumorales se muestra a continuación:
+
+```{r}
+mds <- cmdscale(disE,eig=T)
+#jpeg(file="MDSdisE.jpeg", res = 300)
+pdf(file = "MDSdisE.pdf", width = 17, height = 12, family = "Helvetica")
+plot(mds$points,xlab="Coord 1",ylab="Coord 2", col=as.numeric(Mvalt[,368647])+1)
+abline(h=0,v=0,lty=4,col="gray")
+title("MDS with Euclidean distance")
+legend("topleft", legend=levels(Mvalt[,368647]), pch=21, col = 2:5)
+dev.off()
+```
+
+A pesar de que la distribución es diferente a la observada comparando las medias, BRCA y PRAD se sitúan a la derecha de la primera coordenada y LUAD y COAD a la izquierda, de manera similar a lo qeu ocurría con la primera componente de la PCA. 
+
+```{r}
+evv <- mds$eig
+pb <- cumsum(evv)/sum(evv)*100; round(pb[1:6],2)
+names(pb) <- paste("Coord",1:6,sep = "")
+pdf(file = "AccPerc.pdf", width = 17, height = 12, family = "Helvetica")
+barplot(pb[1:6],ylab="porcentaje")
+title(main="Accumulated percentage",line=1.5)
+dev.off()
+```
+
+A pesar de esta relación, y debido al elevado número de probes y a la variabilidad que estos presentan, esta tendencia únicamente explica cerca del 20% de la variabilidad encontrada; y el conjunto de ambas coordenadas no superan el 30% de la variabilidad explicada. A pesar de ello es posible encontrar similitudes con el gráfico MDS calculado a partir de las medias. 
 
 
-MvalF_t <- MvalF[, grep("01A", colnames(MvalF))]
-MvalF2 <- MvalF2[which(row.names(MvalF2) %in% sig.probes),]
-MvalF2 <- MvalF2[sig.probes,]
-head(which(row.names(MvalF2) %in% sig.probes))
-MvalF2 <- MvalF2[-c(4,5,8,9,10),]
+```{r}
+pdf(file = "lattice.pdf", width = 17, height = 12, family = "Helvetica")
+lattice::levelplot(as.matrix(disE))
+dev.off()
+```
 
 
-MvalF_t["class",] <- class
+Seguidamente se clasificarán las muestras mediante el empleo de dendogramas o árboles de clasificación: 
 
-MvalF_t <- t(MvalF_t)
-MvalF_t <- transposeBigData(MvalF_t)
+```{r}
+# MÉTODO COMPLETE 
+
+hccomp <- hclust(disE, method="complete")
+pdf(file = "hccomp.pdf", width = 17, height = 12, family = "Helvetica")
+plot(hccomp, labels = Mvalt$class, main= "Dendogram with complete method")
+rect.hclust(hccomp, k=4, border="red")
+dev.off()
+```
+
+```{r}
+hccomp_res <- cutree(hccomp,4)
+table(Cluster=hccomp_res ,Tipo=Mvalt$class)
+```
+
+Con el método complete la primera clase o cluster está más relacionada con COAD, la segunda con prácticamente todos los tipos de tumor, mientras qeu la 3a y 4a apenas tienen correspondencia con el tipo de tumor. 
+
+A continuación se empleará el método de Ward:
+
+```{r}
+# MÉTODO DE WARD
+library(cluster)
+agnes <- agnes(Mvalt[,-368647], method="ward")
+pdf(file = "agnes.pdf", width = 17, height = 12, family = "Helvetica")
+plot(agnes, which.plots = 2, labels = Mvalt$class, main = "Dendogram with Ward method")
+rect.hclust(agnes, k=4, border="red")
+dev.off()
+```
+
+```{r}
+agnes_res <- cutree(agnes, k=4)
+table(Ward=agnes_res, Type=Mvalt$class)
+```
+
+A partir del método de Ward se clasifican correctamente el 100% de las muestras, donde el primer cluster se relaciona con COAD, el segudo con BRCA, el tercero con PRAD y el cuarto con LAUD. Al observar el dondegrama de clasficación se aprecia el mismo patrón que el observado en los gráficos MDS: LUAD y COAD están más próximos entre sí, al igual que BRCA y PRAD.
+
+Seguidamente se procede a realizar un partición mediante la técnica de k-medias o k-means. Previo a su realización comprobamos el número de k apropiado para hacer la clasificación:
+
+```{r}
+set.seed(123)
+wss <- rep(0, 8) 
+for(i in 1:8){wss[i] <- sum(kmeans(Mvalt[,-368647], centers= i)$withinss)}
+pdf(file = "kSel.pdf", width = 17, height = 12, family = "Helvetica")
+plot(1:8, wss, type = "b", xlab = "Number of groups", ylab = "Within groups sum of squares")
+dev.off()
+```
+
+```{r}
+set.seed(12345)
+# Formamos 4 grupos por k-means
+km <- kmeans(Mvalt[,-368647], centers=4, algorithm="Hartigan-Wong"); km
+km$size
+pred_table <- table(kmeans=km$cluster, Type=Mvalt$class); pred_table
+```
+
+```{r}
+pdf(file = "kmCluster.pdf", width = 17, height = 12, family = "Helvetica")
+fviz_cluster(km, Mvalt[, -368647], legend = "right", geom = "points", pointsize = 12, ggtheme = theme_minimal())
+dev.off()
 ```
 
 
 ```{r}
-#mds <- cmdscale(dist(scapulae[,-8]),eig=T
+pca <- prcomp(Mvalt[,-368647], scale=TRUE)
+#summary(pca)
+```
+
+
+Seguidamente se va a comprobar la homogeneidad de varianzas para comprobar si sería útil un análisis discriminante:
+
+```{r}
+p <- ncol(Mvalt[,-368647])
+n <- table(Mvalt[368647])
+S1 <- (n[1]-1)*cov(Mvalt[Mvalt$class=="tumor-BRCA",-368647])/n[1]
+S2 <- (n[2]-1)*cov(Mvalt[Mvalt$class=="tumor-COAD",-368647])/n[2]
+S3 <- (n[3]-1)*cov(Mvalt[Mvalt$class=="tumor-LUAD",-368647])/n[3]
+S4 <- (n[4]-1)*cov(Mvalt[Mvalt$class=="tumor-PRAD",-368647])/n[4]
+S <- (n[1]*S1+n[2]*S2+n[3]*S3+n[4]*S4)/sum(n)
+llr <- sum(n)*log(det(S))-n[1]*log(det(S1))-n[2]*log(det(S2))-n[3]*log(det(S3))-n[4]*log(det(S4))
+p.valor <- pchisq(llr, p*(p+1)/2, lower.tail=FALSE)
+c(llr=as.numeric(llr),p.valor=as.numeric(p.valor))
+```
+
+
+Finalmente se emplea la función `sknn()` del paquete `klaR` para estudiar la distancia con un modelo simple de vecinos cercanos, a partir de la matriz de distancias Euclídeas, que como vimos anteriormente clasifica adecuadamente los datos. 
+
+```{r}
+knn.res <- sknn(class ~ ., data = Mvalt)
+table(Type=predict(knn.res)$class,Mvalt$class)
+training_error <- mean(Mvalt$class != predict(knn.res)$class) *100; training_error
 ```
 
 
