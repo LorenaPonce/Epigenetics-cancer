@@ -86,7 +86,7 @@ commonBarcodes <- function(project, query, n){
 ```
 
 
-```{r}
+```{r annotation}
 ann450k = getAnnotation(IlluminaHumanMethylation450kanno.ilmn12.hg19)
 ```
 
@@ -234,18 +234,8 @@ query.exp.brca <- GDCquery(project = brca,
                       platform = "Illumina HiSeq", 
                       file.type = "normalized_results",
                       sample.type = c("Primary solid Tumor", "Solid Tissue Normal"), 
-                      barcode = barcodes.no.dup)
-#strtrim(barcodes.brca, 12)
-#GDCdownload(query.exp.brca)
+                      barcode = strtrim(barcodes.brca, 12))
 
-exp.brca <- GDCprepare(query = query.exp.brca,
-                      save = FALSE,
-                      save.filename = "brcaRNAseq.rda" ,
-                      summarizedExperiment = TRUE)
-```
-
-
-```{r}
 ## obtener el listado de barcodes no duplicados en exp.brca
 dup <- query.exp.brca$results[[1]]$cases[duplicated(query.exp.brca$results[[1]]$cases)]
 barcodes.no.dup <- query.exp.brca$results[[1]]$cases[!duplicated(query.exp.brca$results[[1]]$cases)]
@@ -253,7 +243,21 @@ idx <- which(barcodes.no.dup %in% dup) #listado con el ?ndice de los barcodes du
 barcodes.no.dup <- barcodes.no.dup[-idx]
 any(dup %in% barcodes.no.dup)
 
-# volver a descargar query.exp.brca con los nuevos barcodes
+query.exp.brca <- GDCquery(project = brca, 
+                      legacy = TRUE,
+                      data.category = "Gene expression",
+                      data.type = "Gene expression quantification",
+                      platform = "Illumina HiSeq", 
+                      file.type = "normalized_results",
+                      sample.type = c("Primary solid Tumor", "Solid Tissue Normal"), 
+                      barcode = barcodes.no.dup)
+
+#GDCdownload(query.exp.brca)
+
+exp.brca <- GDCprepare(query = query.exp.brca,
+                      save = FALSE,
+                      save.filename = "brcaRNAseq.rda" ,
+                      summarizedExperiment = TRUE)
 ```
 
 
@@ -306,14 +310,16 @@ query.mut.coad  <- GDCquery(project = coad,
                             data.type = "Simple somatic mutation",
                             sample.type = "Primary solid Tumor",
                             legacy = TRUE)
+
 #GDCdownload(query.mut.coad)
+
 mut.coad <- GDCprepare(query.mut.coad,
                       save = TRUE,
                       save.filename = "coadMut.rda")
 
-maf.coad <- curatedTCGAData(diseaseCode = "COAD",
-                        assays = "Mutation",
-                        dry.run = FALSE)
+#maf.coad <- curatedTCGAData(diseaseCode = "COAD",
+#                        assays = "Mutation",
+#                        dry.run = FALSE)
 
 cna.coad <- curatedTCGAData(diseaseCode = "COAD",
                             assays = "*GISTIC*",
@@ -380,7 +386,8 @@ cna.prad <- curatedTCGAData(diseaseCode = "PRAD",
 
 # Download clinical data from samples downloaded:
 
-```{r clinical.download}
+```{r clinical.download, eval=FALSE}
+# NOT USED!!
 ## for COAD
 query.clinic.coad <- GDCquery(project = coad, 
                   data.category = "Clinical",
@@ -440,7 +447,7 @@ clinical.prad <- GDCprepare(query.clinic.prad,
 ```
 
 
-```{r}
+```{r clinical.download2}
 clinic_coad <- GDCquery_clinic(coad, type = "clinical", save.csv = FALSE)
 clinic_brca <- GDCquery_clinic(brca, type = "clinical", save.csv = FALSE)
 clinic_prad <- GDCquery_clinic(prad, type = "clinical", save.csv = FALSE)
@@ -484,6 +491,7 @@ length(which(strtrim(barcodes.prad, 15) %in% strtrim(prad.map$colname, 15)))
 cna.prad.data <- sampleMap(cna.prad)
 length(which(strtrim(barcodes.prad, 15) %in% strtrim(cna.prad.data$colname, 15)))
 ```
+
 
 # PIPELINE PARA EL AN?LSIS DEL METILOMA 
 
@@ -533,6 +541,9 @@ dim(met.luad)
 ```
 
 
+### PREVISUALIZACIÓN DE LOS DATOS
+
+
 ```{r densityPlot.betaVal}
 par(mfrow = c(2,2))
 densityPlot(assay(met.coad), sampGroups =colData(met.coad)$definition, legend = TRUE, main = "COAD beta-values")
@@ -541,7 +552,7 @@ densityPlot(assay(met.luad), sampGroups =colData(met.luad)$definition, legend = 
 densityPlot(assay(met.prad), sampGroups =colData(met.prad)$definition, legend = TRUE, main = "PRAD beta-values")
 ```
 
-# PREVISUALIZACIÓN DE LOS DATOS
+
 
 ```{r qplot.met.coad}
 # DISTRIBUCIÓN EN COAD
@@ -552,7 +563,7 @@ qplot(assay(met.coad)[ , grepl( "11A" , colnames( assay(met.coad) ) ) ] , fill=I
 
 En las distribución de los beta values de COAD se aprecian muchos valores cercanos a 0.50, posible razón por la que al calcular la media entre ambos tipos de muestras y estudiar la significación no se aprecien diferencias significativas el grado de metilación. 
 
-```{rqplot.met.brca}
+```{r qplot.met.brca}
 # DISTRIBUCIÓN EN BRCA
 
 qplot(assay(met.brca)[ , grepl( "01A" , colnames( assay(met.brca) ) ) ] , fill=I(rgb(0.72, 0.201, 0.176,0.6)), main = "Tejido canceroso BRCA", xlab = "Beta-values", ylab = "recuento", bins = 50, ylim = c(0, 50000))
@@ -640,7 +651,7 @@ TCGAvisualize_meanMethylation(met.luad,
 En LUAD no solo no hay diferencias significativas, sino que es la cohorte en la que se aprecia una menor diferencia entre ambos tipos de muestras.
 
 
-### DIFFERENTIAL METHYLATION REGIONS (DMR)
+### REGIONES DIFERENCIALMENTE METILADAS (DMR) CON TCGABiolinks
 A continuaci?n se obtendr?n las regiones diferencialmente metiladas en ambos grupos (normal y tumoral), para ello el paquete TCGABiolinks dispone de una funci?n `TCGAanalyze_DMR`. Esta funci?n calcula en primer lugar la diferencia entre la media de metilizaci?n (media de los valores beta) de cada grupo para cada probe. Seguidamente, calcula la expresi?n diferencial empleando el test de Wilcoxon ajustado por el m?todo de Benjamini-Hochberg. Se especifican adem?s el valor umbral del p-valor ajustado y la diferencia absoluta m?nima entre los valores beta.
 
 1. COAD
@@ -661,7 +672,8 @@ met.coad <- TCGAanalyze_DMR(met.coad,
 
 
 ```{r dmr.sig.coad}
-dmr_coad <- read.csv("DMR_results_COAD_definition_Primary.solid.Tumor_Solid.Tissue.Normal_pcut_0.01_meancut_0.25.csv")
+dmr_coad <- read.csv("DMR_results_definition_Primary.solid.Tumor_Solid.Tissue.Normal_pcut_0.01_meancut_0.25")
+#"DMR_results_COAD_definition_Primary.solid.Tumor_Solid.Tissue.Normal_pcut_0.01_meancut_0.25.csv"
 
 ## exploraci?n de los datos de metilaci?n diferencial entre muestras normales y tumorales
 dim(dmr_coad)
@@ -675,21 +687,6 @@ dmr_coad_sel <- dmr_coad[dmr_coad$status.Solid.Tissue.Normal.Primary.solid.Tumor
 dmr_coad_sel$status.Solid.Tissue.Normal.Primary.solid.Tumor <- factor(dmr_coad_sel$status.Solid.Tissue.Normal.Primary.solid.Tumor, levels = c("Hypermethylated in Primary solid Tumor", "Hypomethylated in Primary solid Tumor"), labels = c('Hypermethylated', 'Hypomethylated'))
 ```
 
-```{r ttest.abc.coad}
-ttest <- ttest_data(assay(met.coad), 1, 30, 31, 60, 1e-2)
-nrow(ttest)
-ttest2 <- ttest_data(Mval.coad, 1, 30, 31, 60, 1e-2)
-nrow(ttest2)
-```
-
-```{r check.sig.probes.coad}
-sig.coad <- ntCOAD[which(ntCOAD$adj.P.Val <= 0.01),]
-sig2 <- p.valEfit[which(p.valEfit[,1]<= 0.01),]
-length(which(rownames(sig.coad) %in% rownames(sig2)))
-length(which(rownames(sig.coad) %in% dmr_coad_sel$probeID))
-length(which(rownames(sig.coad) %in% rownames(ttest2)))
-length(which(dmr_coad_sel$probeID %in% rownames(ttest2)))
-```
 
 2. BRCA
 
@@ -708,7 +705,8 @@ met.brca <-TCGAanalyze_DMR(met.brca,
 ```
 
 ```{r dmr.sig.brca}
-dmr_brca <- read.csv("DMR_results_BRCA_definition_Primary.solid.Tumor_Solid.Tissue.Normal_pcut_0.01_meancut_0.25.csv")
+dmr_brca <- read.csv("DMR_results_definition_Primary.solid.Tumor_Solid.Tissue.Normal_pcut_0.01_meancut_0.25")
+#"DMR_results_BRCA_definition_Primary.solid.Tumor_Solid.Tissue.Normal_pcut_0.01_meancut_0.25.csv"
 
 ## exploraci?n de los datos de metilaci?n diferencial entre muestras normales y tumorales
 dim(dmr_brca)
@@ -719,24 +717,6 @@ summary(dmr_brca[cols])
 dmr_brca_sel <- dmr_brca[dmr_coad$status.Solid.Tissue.Normal.Primary.solid.Tumor %in% c("Hypermethylated in Primary solid Tumor", "Hypomethylated in Primary solid Tumor"), -c(5:8)]
 ```
 Parece que COAD presenta mayor grado de metilaci?n que BRCA, y en ambos casos es mayor el n?mero de regiones hipermetiladas que hipometiladas.
-
-
-```{r ttest.abc.brca}
-ttest.brca <- ttest_data(assay(met.brca), 1, 50, 51, 100, 1e-2)
-nrow(ttest.brca)
-ttest2.brca <- ttest_data(Mval.brca, 1, 50, 51, 100, 1e-2)
-nrow(ttest2.brca)
-```
-
-
-```{r check.sig.probes.brca}
-sig.brca <- ntBRCA[which(ntBRCA$adj.P.Val <= 0.01),]
-sig2 <- p.valEfit[which(p.valEfit[,2]<= 0.01),]
-length(which(rownames(sig.brca) %in% rownames(sig2)))
-length(which(rownames(sig.brca) %in% dmr_brca_sel$probeID))
-length(which(rownames(sig.brca) %in% rownames(ttest2.brca)))
-length(which(dmr_brca_sel$probeID %in% rownames(ttest2.brca)))
-```
 
 
 3. PRAD
@@ -756,7 +736,8 @@ met.prad <-TCGAanalyze_DMR(met.prad,
 ```
 
 ```{r dmr.sig.prad}
-dmr_prad <- read.csv("DMR_results_PRAD_definition_Primary.solid.Tumor_Solid.Tissue.Normal_pcut_0.01_meancut_0.25.csv")
+dmr_prad <- read.csv("DMR_results_definition_Primary.solid.Tumor_Solid.Tissue.Normal_pcut_0.01_meancut_0.25")
+#"DMR_results_PRAD_definition_Primary.solid.Tumor_Solid.Tissue.Normal_pcut_0.01_meancut_0.25.csv"
 
 ## exploraci?n de los datos de metilaci?n diferencial entre muestras normales y tumorales
 dim(dmr_prad)
@@ -766,24 +747,6 @@ summary(dmr_prad[cols])
 
 dmr_prad_sel <- dmr_prad[dmr_prad$status.Solid.Tissue.Normal.Primary.solid.Tumor %in% c("Hypermethylated in Primary solid Tumor", "Hypomethylated in Primary solid Tumor"), -c(5:8)]
 ```
-
-
-```{r ttest.abc.prac}
-ttest.prad <- ttest_data(assay(met.prad), 1, 50, 51, 100, 1e-2)
-nrow(ttest.prad)
-ttest2.prad <- ttest_data(Mval.prad, 1, 50, 51, 100, 1e-2)
-nrow(ttest2.prad)
-```
-
-```{r check.probes.sig.prad}
-sig.prad <- ntPRAD[which(ntPRAD$adj.P.Val <= 0.01),]
-sig2 <- p.valEfit[which(p.valEfit[,4]<= 0.01),]
-length(which(rownames(sig.prad) %in% rownames(sig2)))
-length(which(rownames(sig.prad) %in% dmr_prad_sel$probeID))
-length(which(rownames(sig.prad) %in% rownames(ttest2.prad)))
-length(which(dmr_prad_sel$probeID %in% rownames(ttest2.prad)))
-```
-
 
 
 4. LUAD
@@ -803,7 +766,8 @@ met.luad <-TCGAanalyze_DMR(met.luad,
 ```
 
 ```{r dmr.sig.luad}
-dmr_luad <- read.csv("DMR_results_LUAD_definition_Primary.solid.Tumor_Solid.Tissue.Normal_pcut_0.01_meancut_0.25.csv")
+dmr_luad <- read.csv("DMR_results_definition_Primary.solid.Tumor_Solid.Tissue.Normal_pcut_0.01_meancut_0.25")
+#"DMR_results_LUAD_definition_Primary.solid.Tumor_Solid.Tissue.Normal_pcut_0.01_meancut_0.25.csv"
 
 ## exploraci?n de los datos de metilaci?n diferencial entre muestras normales y tumorales
 dim(dmr_luad)
@@ -812,23 +776,6 @@ length(which(dmr_luad$status.Primary.solid.Tumor.Solid.Tissue.Normal != "Not Sig
 summary(dmr_luad[cols])
 
 dmr_luad_sel <- dmr_luad[dmr_prad$status.Solid.Tissue.Normal.Primary.solid.Tumor %in% c("Hypermethylated in Primary solid Tumor", "Hypomethylated in Primary solid Tumor"), -c(5:8)]
-```
-
-```{r ttest.abc.luad}
-ttest.luad <- ttest_data(assay(met.luad), 1, 28, 29, 56, 1e-2)
-nrow(ttest.luad)
-#ttest2.luad <- ttest_data(Mval.luad, 1, 28, 29, 56, 1e-2)
-#nrow(ttest2.luad)
-```
-
-
-```{r check.sig.probes.luad}
-sig.luad <- ntLUAD[which(ntLUAD$adj.P.Val <= 0.01),]
-sig2 <- p.valEfit[which(p.valEfit[,3]<= 0.01),]
-length(which(rownames(sig.luad) %in% rownames(sig2)))
-length(which(rownames(sig.luad) %in% dmr_luad_sel$probeID))
-length(which(rownames(sig.luad) %in% rownames(ttest.luad)))
-length(which(dmr_luad_sel$probeID %in% rownames(ttest.luad)))
 ```
 
 
@@ -1017,7 +964,7 @@ table(starburst.luad_2['starburst.status'])
 ```
 
 
-## PROBES DIFERENCIALES ENTRE LOS DISTINTOS GRUPOS DE ESTUDIO: tumoral-normal + cohortes
+## PROBES DIFERENCIALES: 
 
 A partir de los datos preprocesados de metilaci?n `met.coad`, que contienen los valores beta de metilaci?n de cada una de las muestras. En primer lugar se calculan los valores M, m?s adaptados a los c?lculos estad?sticos.
 
@@ -1052,6 +999,49 @@ MvalF <- na.omit(MvalF)
 rownames(MvalF) <- MvalF$Row.names
 MvalF <- MvalF[-1]
 ```
+
+### PROBES DIFERENCIALES CON ABC.RAP:
+
+1. COAD
+
+```{r ttest.abc.coad}
+ttest <- ttest_data(assay(met.coad), 1, 30, 31, 60, 1e-2)
+nrow(ttest)
+ttest2 <- ttest_data(Mval.coad, 1, 30, 31, 60, 1e-2)
+nrow(ttest2)
+```
+
+2. BRCA
+
+```{r ttest.abc.brca}
+ttest.brca <- ttest_data(assay(met.brca), 1, 50, 51, 100, 1e-2)
+nrow(ttest.brca)
+ttest2.brca <- ttest_data(Mval.brca, 1, 50, 51, 100, 1e-2)
+nrow(ttest2.brca)
+```
+
+3. PRAD
+
+```{r ttest.abc.prad}
+ttest.prad <- ttest_data(assay(met.prad), 1, 50, 51, 100, 1e-2)
+nrow(ttest.prad)
+ttest2.prad <- ttest_data(Mval.prad, 1, 50, 51, 100, 1e-2)
+nrow(ttest2.prad)
+```
+
+4. LUAD
+
+
+```{r ttest.abc.luad}
+ttest.luad <- ttest_data(assay(met.luad), 1, 28, 29, 56, 1e-2)
+nrow(ttest.luad)
+ttest2.luad <- ttest_data(Mval.luad, 1, 28, 29, 56, 1e-2)
+#nrow(ttest2.luad)
+```
+
+
+
+### PROBES DIFERENCIALES CON LIMMA:
 
 ```{r limma}
 # Use limma without the means 
@@ -1105,23 +1095,6 @@ cat ("En la comparación 'normal vs tumor' en LUAD:", sum(ntLUAD$adj.P.Val<=0.01
 ```
 
 
-```{r}
-sigCOAD <- assay(met.coad)[which(row.names(assay(met.coad)) %in% row.names(ntCOAD)),]
-meansTumor <- rowMeans(sigCOAD[,grep("01A", colnames(sigCOAD))], na.rm=TRUE)
-meansNormal <- rowMeans(sigCOAD[,grep("11A", colnames(sigCOAD))], na.rm=TRUE)
-means <- data.frame("meansTumor" = meansTumor, "meansNormal" = meansNormal)
-means$dif <- (means$meansTumor - means$meansNormal)
-length(which(abs(means$dif) >= 0.7))
-length(which(abs(means$dif) <= 0.2))
-```
-
-
-
-```{r}
-m3 <-as.data.frame(merge(ann450kSub, ntCOAD, by.x = "Name", by.y = "row.names", all.x = FALSE, all.y = TRUE))
-```
-
-
 ```{r volcanoPlot}
 for(i in 1:4){
   compName <-colnames(cont.matrix)[i]
@@ -1139,8 +1112,89 @@ for(i in 1:4){
 ```
 
 
+#### Comparación de los 3 paquetes de análisis
+A continuación se comparan el número de probes significativas en cada uno de los métodos empleados:
+En primer lugar para COAD: 
+
+```{r check.sig.probes.coad}
+sig.coad <- ntCOAD[which(ntCOAD$adj.P.Val <= 0.01),]
+sig2 <- p.valEfit[which(p.valEfit[,1]<= 0.01),]
+length(which(rownames(sig.coad) %in% rownames(sig2)))
+length(which(rownames(sig.coad) %in% dmr_coad_sel$probeID))
+length(which(rownames(sig.coad) %in% rownames(ttest2)))
+length(which(dmr_coad_sel$probeID %in% rownames(ttest2)))
+```
+
+En segundo lugar para BRCA:
+
+```{r check.sig.probes.brca}
+sig.brca <- ntBRCA[which(ntBRCA$adj.P.Val <= 0.01),]
+sig2 <- p.valEfit[which(p.valEfit[,2]<= 0.01),]
+length(which(rownames(sig.brca) %in% rownames(sig2)))
+length(which(rownames(sig.brca) %in% dmr_brca_sel$probeID))
+length(which(rownames(sig.brca) %in% rownames(ttest2.brca)))
+length(which(dmr_brca_sel$probeID %in% rownames(ttest2.brca)))
+```
+
+En tercer lugar para PRAD:
+
+```{r check.probes.sig.prad}
+sig.prad <- ntPRAD[which(ntPRAD$adj.P.Val <= 0.01),]
+sig2 <- p.valEfit[which(p.valEfit[,4]<= 0.01),]
+length(which(rownames(sig.prad) %in% rownames(sig2)))
+length(which(rownames(sig.prad) %in% dmr_prad_sel$probeID))
+length(which(rownames(sig.prad) %in% rownames(ttest2.prad)))
+length(which(dmr_prad_sel$probeID %in% rownames(ttest2.prad)))
+```
+
+Y finalmente para LUAD, pero en este caso no se pudo realizar el ttest del paquete ABC.RAP con los valores M.
+
+```{r check.sig.probes.luad}
+sig.luad <- ntLUAD[which(ntLUAD$adj.P.Val <= 0.01),]
+sig2 <- p.valEfit[which(p.valEfit[,3]<= 0.01),]
+length(which(rownames(sig.luad) %in% rownames(sig2)))
+length(which(rownames(sig.luad) %in% dmr_luad_sel$probeID))
+length(which(rownames(sig.luad) %in% rownames(ttest.luad)))
+length(which(dmr_luad_sel$probeID %in% rownames(ttest.luad)))
+```
+
+
+#### Extracción de las probes significativas y cálculo de los valores beta
+
+```{r}
+sigCOAD <- assay(met.coad)[which(row.names(assay(met.coad)) %in% row.names(ntCOAD)),]
+meansTumor <- rowMeans(sigCOAD[,grep("01A", colnames(sigCOAD))], na.rm=TRUE)
+meansNormal <- rowMeans(sigCOAD[,grep("11A", colnames(sigCOAD))], na.rm=TRUE)
+means <- data.frame("meansTumor" = meansTumor, "meansNormal" = meansNormal)
+means$dif <- (means$meansTumor - means$meansNormal)
+length(which(abs(means$dif) >= 0.7))
+length(which(abs(means$dif) <= 0.2))
+```
+
+
+
+```{r}
+#m3 <-as.data.frame(merge(ann450kSub, ntCOAD, by.x = "Name", by.y = "row.names", all.x = FALSE, all.y = TRUE))
+```
+
+
+
+
 
 ## COMPARACIÓN DE LOS PERFILES DE METILACÓN ENTRE COHORTES
+
+```{r topTable.cohorts, eval=FALSE}
+#ann450kSub <- ann450k[match(rownames(MvalF),ann450k$Name),c(1:4,12:19,24:ncol(ann450k))]
+#DMPs <- topTable(fit2, num=Inf, coef=1, genelist=ann450kSub)
+
+COADvsBRCA <- topTable (efit, number=nrow(efit), coef="COAD_BRCA", adjust="fdr")
+COADvsPRAD <- topTable (efit, number=nrow(efit), coef="COAD_PRAD", adjust="fdr")
+COADvsLUAD <- topTable (efit, number=nrow(efit), coef="COAD_LUAD", adjust="fdr")
+BRCAvsLUAD <- topTable (efit, number=nrow(efit), coef="BRCA_LUAD", adjust="fdr")
+BRCAvsPRAD <- topTable (efit, number=nrow(efit), coef="BRCA_PRAD", adjust="fdr")
+PRADvsLUAD <- topTable (efit, number=nrow(efit), coef="PRAD_LUAD", adjust="fdr")
+```
+
 
 
 ```{r rowMeans.betaVal}
@@ -1184,7 +1238,7 @@ summary(decideTests(efit, adjust.method = "BH", p.value = 0.01))
 ```
 
 
-```{r }
+```{r transposeMval}
 #sig.probes <- unique(c(row.names(sig.coad),row.names(sig.brca), row.names(sig.luad), row.names(sig.prad)))
 class <- as.data.frame(c(rep("tumor-COAD", 30), rep("tumor-BRCA", 49), rep("tumor-PRAD", 50),  rep("tumor-LUAD", 25)))
 
@@ -1203,7 +1257,7 @@ disE = dist(Mvalt[,-368647])
 
 El cálculo MDs a partir de la distancias Euclídeas de todas las muestras tumorales se muestra a continuación:
 
-```{r}
+```{r calculeMDS}
 mds <- cmdscale(disE,eig=T)
 #jpeg(file="MDSdisE.jpeg", res = 300)
 pdf(file = "MDSdisE.pdf", width = 17, height = 12, family = "Helvetica")
@@ -1216,7 +1270,7 @@ dev.off()
 
 A pesar de que la distribución es diferente a la observada comparando las medias, BRCA y PRAD se sitúan a la derecha de la primera coordenada y LUAD y COAD a la izquierda, de manera similar a lo qeu ocurría con la primera componente de la PCA. 
 
-```{r}
+```{r accumPerc}
 evv <- mds$eig
 pb <- cumsum(evv)/sum(evv)*100; round(pb[1:6],2)
 names(pb) <- paste("Coord",1:6,sep = "")
@@ -1229,7 +1283,7 @@ dev.off()
 A pesar de esta relación, y debido al elevado número de probes y a la variabilidad que estos presentan, esta tendencia únicamente explica cerca del 20% de la variabilidad encontrada; y el conjunto de ambas coordenadas no superan el 30% de la variabilidad explicada. A pesar de ello es posible encontrar similitudes con el gráfico MDS calculado a partir de las medias. 
 
 
-```{r}
+```{r lattice}
 pdf(file = "lattice.pdf", width = 17, height = 12, family = "Helvetica")
 lattice::levelplot(as.matrix(disE))
 dev.off()
@@ -1238,7 +1292,7 @@ dev.off()
 
 Seguidamente se clasificarán las muestras mediante el empleo de dendogramas o árboles de clasificación: 
 
-```{r}
+```{r dendogramaCOMPLETE}
 # MÉTODO COMPLETE 
 
 hccomp <- hclust(disE, method="complete")
@@ -1248,7 +1302,7 @@ rect.hclust(hccomp, k=4, border="red")
 dev.off()
 ```
 
-```{r}
+```{r resCOMPLETE}
 hccomp_res <- cutree(hccomp,4)
 table(Cluster=hccomp_res ,Tipo=Mvalt$class)
 ```
@@ -1257,7 +1311,7 @@ Con el método complete la primera clase o cluster está más relacionada con CO
 
 A continuación se empleará el método de Ward:
 
-```{r}
+```{r dendogramaWARD}
 # MÉTODO DE WARD
 library(cluster)
 agnes <- agnes(Mvalt[,-368647], method="ward")
@@ -1267,7 +1321,7 @@ rect.hclust(agnes, k=4, border="red")
 dev.off()
 ```
 
-```{r}
+```{r resWARD}
 agnes_res <- cutree(agnes, k=4)
 table(Ward=agnes_res, Type=Mvalt$class)
 ```
@@ -1276,7 +1330,7 @@ A partir del método de Ward se clasifican correctamente el 100% de las muestras
 
 Seguidamente se procede a realizar un partición mediante la técnica de k-medias o k-means. Previo a su realización comprobamos el número de k apropiado para hacer la clasificación:
 
-```{r}
+```{r nK}
 set.seed(123)
 wss <- rep(0, 8) 
 for(i in 1:8){wss[i] <- sum(kmeans(Mvalt[,-368647], centers= i)$withinss)}
@@ -1285,7 +1339,7 @@ plot(1:8, wss, type = "b", xlab = "Number of groups", ylab = "Within groups sum 
 dev.off()
 ```
 
-```{r}
+```{r K-means}
 set.seed(12345)
 # Formamos 4 grupos por k-means
 km <- kmeans(Mvalt[,-368647], centers=4, algorithm="Hartigan-Wong"); km
@@ -1293,14 +1347,14 @@ km$size
 pred_table <- table(kmeans=km$cluster, Type=Mvalt$class); pred_table
 ```
 
-```{r}
+```{r fviz}
 pdf(file = "kmCluster.pdf", width = 17, height = 12, family = "Helvetica")
 fviz_cluster(km, Mvalt[, -368647], legend = "right", geom = "points", pointsize = 12, ggtheme = theme_minimal())
 dev.off()
 ```
 
 
-```{r}
+```{r pca}
 pca <- prcomp(Mvalt[,-368647], scale=TRUE)
 #summary(pca)
 ```
@@ -1332,21 +1386,40 @@ training_error <- mean(Mvalt$class != predict(knn.res)$class) *100; training_err
 
 
 
-```{r topTable.cohorts}
-#ann450kSub <- ann450k[match(rownames(MvalF),ann450k$Name),c(1:4,12:19,24:ncol(ann450k))]
-#DMPs <- topTable(fit2, num=Inf, coef=1, genelist=ann450kSub)
 
-COADvsBRCA <- topTable (efit, number=nrow(efit), coef="COAD_BRCA", adjust="fdr")
-COADvsPRAD <- topTable (efit, number=nrow(efit), coef="COAD_PRAD", adjust="fdr")
-COADvsLUAD <- topTable (efit, number=nrow(efit), coef="COAD_LUAD", adjust="fdr")
-BRCAvsLUAD <- topTable (efit, number=nrow(efit), coef="BRCA_LUAD", adjust="fdr")
-BRCAvsPRAD <- topTable (efit, number=nrow(efit), coef="BRCA_PRAD", adjust="fdr")
-PRADvsLUAD <- topTable (efit, number=nrow(efit), coef="PRAD_LUAD", adjust="fdr")
+
+
+
+
+
+
+
+
+# AN?LISIS MUTACIONAL
+
+```{r}
+mut.coad <- as.data.frame(assay(maf.coad))
+mut.brca <- as.data.frame(assay(maf.brca))
+mut.luad <- as.data.frame(assay(maf.luad))
+mut.prad <- as.data.frame(assay(maf.prad))
+
+mut.coad <- mut.coad[,strtrim(colnames(mut.coad), 12)%in% strtrim(barcodes.coad, 12)] #no coincide ninguna columna
+dim(mut.coad)
+
+mut.brca <- mut.brca[,strtrim(colnames(mut.brca), 12)%in% strtrim(barcodes.brca, 12)]
+dim(mut.brca)
+
+mut.luad <- mut.luad[,strtrim(colnames(mut.luad), 12)%in% strtrim(barcodes.luad, 12)] 
+dim(mut.luad)
+
+mut.prad <- mut.prad[,strtrim(colnames(mut.prad), 12)%in% strtrim(barcodes.prad, 12)] 
+dim(mut.prad)
 ```
+
 
 ## CÓDIGO NO USADO
 
-```{r}
+```{r eval=FALSE}
 ##NOT USED!!
 # DMR with limma
 
@@ -1380,7 +1453,7 @@ efit <- eBayes(fit2)
 
 
 
-```{r}
+```{r eval=FALSE}
 # Get the difference between tumor and normal and save it in a data.frame
 
 z <- unique(strtrim(colnames(Mval.coad), 12))
@@ -1399,37 +1472,10 @@ for (row in 1:nrow(Mval.coad)){
 ```
 
 
-
-
-
-
-# AN?LISIS MUTACIONAL
-
-```{r}
-mut.coad <- as.data.frame(assay(maf.coad))
-mut.brca <- as.data.frame(assay(maf.brca))
-mut.luad <- as.data.frame(assay(maf.luad))
-mut.prad <- as.data.frame(assay(maf.prad))
-
-mut.coad <- mut.coad[,strtrim(colnames(mut.coad), 12)%in% strtrim(barcodes.coad, 12)] #no coincide ninguna columna
-dim(mut.coad)
-
-mut.brca <- mut.brca[,strtrim(colnames(mut.brca), 12)%in% strtrim(barcodes.brca, 12)]
-dim(mut.brca)
-
-mut.luad <- mut.luad[,strtrim(colnames(mut.luad), 12)%in% strtrim(barcodes.luad, 12)] 
-dim(mut.luad)
-
-mut.prad <- mut.prad[,strtrim(colnames(mut.prad), 12)%in% strtrim(barcodes.prad, 12)] 
-dim(mut.prad)
-```
-
-
-
 # Save image
 
 ```{r}
-save.image(file="myObjects.RData")
+#save.image(file="myObjects.RData")
 ```
 
 
