@@ -1057,10 +1057,11 @@ MvalF <- MvalF[-1]
 # Use limma without the means 
 sampleType <- c(rep("tumorCOAD",30), rep("normalCOAD", 30), rep("tumorBRCA", 50), rep("normalBRCA", 50), rep("tumorPRAD", 50), rep("normalPRAD", 50), rep("tumorLUAD",28), rep("normalLUAD",28))
 
-design <- model.matrix(~0+sampleType)
+design <- model.matrix(~ 0+ sampleType)
 colnames(design) <-sort(unique(sampleType))
 
 fit <- lmFit(MvalF, design)
+#fit2 <-lmFit(MvalF, design2)
 
 cont.matrix <- makeContrasts (
       COADsamples = tumorCOAD-normalCOAD,
@@ -1089,10 +1090,10 @@ Valores muy altos en comparaci?n con los obtenidos a partir de TCGAanlyze_DMR. A
 #ann450kSub <- ann450k[match(rownames(MvalF),ann450k$Name),c(1:4,12:19,24:ncol(ann450k))]
 #DMPs <- topTable(fit2, num=Inf, coef=1, genelist=ann450kSub)
 
-ntCOAD <- topTable (efit, number=nrow(efit), coef="COADsamples", adjust="fdr", lfc = 2^0.2, p.value = 0.01)#, genelist=ann450kSub
-ntBRCA <- topTable (efit, number=nrow(efit), coef="BRCAsamples", adjust="fdr", lfc = 2^0.2, p.value = 0.01)
-ntPRAD <- topTable (efit, number=nrow(efit), coef="PRADsamples", adjust="fdr", lfc = 2^0.2, p.value = 0.01)
-ntLUAD <- topTable (efit, number=nrow(efit), coef="LUADsamples", adjust="fdr", lfc = 2^0.2, p.value = 0.01)
+ntCOAD <- topTable (efit, number=nrow(efit), coef="COADsamples", adjust="fdr", p.value = 0.01)
+ntBRCA <- topTable (efit, number=nrow(efit), coef="BRCAsamples", adjust="fdr", p.value = 0.01)
+ntPRAD <- topTable (efit, number=nrow(efit), coef="PRADsamples", adjust="fdr", p.value = 0.01)
+ntLUAD <- topTable (efit, number=nrow(efit), coef="LUADsamples", adjust="fdr", p.value = 0.01)
 ```
 
 
@@ -1105,10 +1106,20 @@ cat ("En la comparación 'normal vs tumor' en LUAD:", sum(ntLUAD$adj.P.Val<=0.01
 
 
 ```{r}
-m3 <-as.data.frame(merge(ann450kSub, ntCOAD, by.x = "Name", by.y = "row.names", all.x = FALSE, all.y = TRUE))
+sigCOAD <- assay(met.coad)[which(row.names(assay(met.coad)) %in% row.names(ntCOAD)),]
+meansTumor <- rowMeans(sigCOAD[,grep("01A", colnames(sigCOAD))], na.rm=TRUE)
+meansNormal <- rowMeans(sigCOAD[,grep("11A", colnames(sigCOAD))], na.rm=TRUE)
+means <- data.frame("meansTumor" = meansTumor, "meansNormal" = meansNormal)
+means$dif <- (means$meansTumor - means$meansNormal)
+length(which(abs(means$dif) >= 0.7))
+length(which(abs(means$dif) <= 0.2))
 ```
 
 
+
+```{r}
+m3 <-as.data.frame(merge(ann450kSub, ntCOAD, by.x = "Name", by.y = "row.names", all.x = FALSE, all.y = TRUE))
+```
 
 
 ```{r volcanoPlot}
@@ -1151,7 +1162,7 @@ Mval_t <- na.omit(Mval)
 rownames(Mval_t) <- Mval_t$Row.names
 Mval_t <- Mval_t[-1]
 dim(Mval_t)
-cpg <- row.names(Mval_t)
+#cpg <- row.names(Mval_t)
 ```
 
 
@@ -1174,7 +1185,7 @@ summary(decideTests(efit, adjust.method = "BH", p.value = 0.01))
 
 
 ```{r }
-sig.probes <- unique(c(row.names(sig.coad),row.names(sig.brca), row.names(sig.luad), row.names(sig.prad)))
+#sig.probes <- unique(c(row.names(sig.coad),row.names(sig.brca), row.names(sig.luad), row.names(sig.prad)))
 class <- as.data.frame(c(rep("tumor-COAD", 30), rep("tumor-BRCA", 49), rep("tumor-PRAD", 50),  rep("tumor-LUAD", 25)))
 
 MvalF2 <- MvalF[is.finite(rowSums(MvalF)),]
