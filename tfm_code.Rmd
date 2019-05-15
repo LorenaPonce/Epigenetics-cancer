@@ -1172,9 +1172,60 @@ length(which(abs(means$dif) <= 0.2))
 ```
 
 
-
 ```{r}
 #m3 <-as.data.frame(merge(ann450kSub, ntCOAD, by.x = "Name", by.y = "row.names", all.x = FALSE, all.y = TRUE))
+```
+
+
+#### Clasificación de los perfiles de metilación
+
+
+```{r}
+# extracción de los valores beta de las muestras tumorales y de las probes significativas
+sigCOADt <- t(sigCOAD[,grep("01A", colnames(sigCOAD))])
+```
+
+```{r}
+library(cluster)
+a <- agnes(sigCOADt, method="average")
+pdf(file = "aAverage.pdf", width = 17, height = 12, family = "Helvetica")
+plot(a, which.plots = 2, main = "Dendogram with Average method")
+#rect.hclust(agnes, k=4, border="red")
+#dev.off()
+```
+
+```{r}
+# Elbow method
+fviz_nbclust(sigCOADt, kmeans, method = "wss") +
+    geom_vline(xintercept = 4, linetype = 2)+
+  labs(subtitle = "Elbow method")
+
+# Silhouette method
+fviz_nbclust(sigCOADt, kmeans, method = "silhouette")+
+  labs(subtitle = "Silhouette method")
+
+# Gap statistic
+# nboot = 50 to keep the function speedy. 
+# recommended value: nboot= 500 for your analysis.
+# Use verbose = FALSE to hide computing progression.
+set.seed(123)
+fviz_nbclust(sigCOADt, kmeans, nstart = 25,  method = "gap_stat", nboot = 50)+
+  labs(subtitle = "Gap statistic method")
+```
+
+```{r}
+library(NbClust)
+NbClust(sigCOADt, distance = "euclidean", min.nc = 2, max.nc = 8, method = "kmeans")
+```
+
+
+```{r}
+set.seed(12345)
+# Formamos 4 grupos por k-means
+km <- kmeans(sigCOADt, centers=4, algorithm="Hartigan-Wong")
+km$size
+km$cluster
+#pred_table <- table(kmeans=km$cluster); pred_table
 ```
 
 
@@ -1313,7 +1364,6 @@ A continuación se empleará el método de Ward:
 
 ```{r dendogramaWARD}
 # MÉTODO DE WARD
-library(cluster)
 agnes <- agnes(Mvalt[,-368647], method="ward")
 pdf(file = "agnes.pdf", width = 17, height = 12, family = "Helvetica")
 plot(agnes, which.plots = 2, labels = Mvalt$class, main = "Dendogram with Ward method")
