@@ -458,7 +458,7 @@ clinic_luad <- GDCquery_clinic(luad, type = "clinical", save.csv = FALSE)
 ```{r}
 ## Check if the mutation and methylation barcodes match
 ## LUAD with curatedTCGAData
-luad.map<- sampleMap(luad)
+## luad.map<- sampleMap(luad)
 length(which(strtrim(barcodes.luad, 15) %in% strtrim(luad.map$colname, 15)))
 cna.luad.data <- sampleMap(cna.luad)
 length(which(strtrim(barcodes.luad, 15) %in% strtrim(cna.luad.data$colname, 15)))
