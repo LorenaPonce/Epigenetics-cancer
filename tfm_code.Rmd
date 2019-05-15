@@ -12,11 +12,11 @@ output:
     code_download: true
 ---
 
-```{r}
+```{r, eval = FALSE}
 setwd("E:/Escritorio/Epigenetics & cancer")
 ```
 
-```{r isntall_Rpackages, include=FALSE}
+```{r isntall_Rpackages, include=FALSE, eval = FALSE}
 install.packages("devtools")
 BiocManager::install("maftools", version = "3.8")
 BiocManager::install("knitr", version = "3.8")
