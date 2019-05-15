@@ -272,7 +272,7 @@ query.exp.luad <- GDCquery(project = luad,
                       sample.type = c("Primary solid Tumor", "Solid Tissue Normal"),
                       barcode = strtrim(barcodes.luad, 12))
 
-#GDCdownload(query.exp.luad)
+GDCdownload(query.exp.luad)
 
 exp.luad <- GDCprepare(query = query.exp.luad,
                       save = FALSE,
@@ -292,7 +292,7 @@ query.exp.prad <- GDCquery(project = prad,
                       sample.type = c("Primary solid Tumor", "Solid Tissue Normal"),
                       barcode = strtrim(barcodes.prad, 12))
 
-#GDCdownload(query.exp.prad)
+GDCdownload(query.exp.prad)
 
 exp.prad <- GDCprepare(query = query.exp.prad,
                       save = FALSE,
