@@ -992,14 +992,35 @@ beta2m <- function(beta) {
 }
 ```
 
+(imallona: replacing the two dimensional apply by a one-dimensional one, by row, to speed it up)
+
 
 ```{r get.mVal}
+## # Transform the beta values in M values
+
+## Mval.coad <- apply(assay(met.coad), c(1,2), beta2m)
+## Mval.brca <- apply(assay(met.brca), c(1,2), beta2m)
+## Mval.prad <- apply(assay(met.prad), c(1,2), beta2m)
+## Mval.luad <- apply(assay(met.luad), c(1,2), beta2m)
+
+## # Combine all the dataframes 
+
+## Mval1 <- merge(Mval.coad, Mval.brca, by='row.names', all = T)
+## Mval2 <- merge(Mval.prad, Mval.luad, by='row.names', all = T)
+## MvalF <- merge(Mval1, Mval2, by = "Row.names", all = T)
+## MvalF <- na.omit(MvalF)
+## rownames(MvalF) <- MvalF$Row.names
+## MvalF <- MvalF[-1]
+```
+
+
+```{r get.mVal_modified}
 # Transform the beta values in M values
 
-Mval.coad <- apply(assay(met.coad), c(1,2), beta2m)
-Mval.brca <- apply(assay(met.brca), c(1,2), beta2m)
-Mval.prad <- apply(assay(met.prad), c(1,2), beta2m)
-Mval.luad <- apply(assay(met.luad), c(1,2), beta2m)
+Mval.coad <- apply(assay(met.coad), 2, beta2m)
+Mval.brca <- apply(assay(met.brca), 2, beta2m)
+Mval.prad <- apply(assay(met.prad), 2, beta2m)
+Mval.luad <- apply(assay(met.luad), 2, beta2m)
 
 # Combine all the dataframes 
 
@@ -1110,7 +1131,7 @@ cat ("En la comparación 'normal vs tumor' en LUAD:", sum(ntLUAD$adj.P.Val<=0.01
 for(i in 1:4){
   compName <-colnames(cont.matrix)[i]
   file=paste("volcanoPlot", compName, ".pdf", sep="")
-  pdf(file=file.path("E:/Escritorio/Epigenetics & cancer", file), paper="special", width=6, height=6)
+  pdf(file=file.path("outputs", file), paper="special", width=6, height=6)
   volcanoplot(efit, coef=i, highlight=10, 
             main=paste("Differentially methylated probes",compName, sep="\n"))
   lp <- -log10(efit$p.value[,i])
@@ -1122,6 +1143,44 @@ for(i in 1:4){
 }
 ```
 
+
+
+#### Extra added differential methylation proposal
+
+(Izaskun) Feel free to discard. My main aim is to first work with M values, and second add the patient effect with a nested factorial design.
+
+We could even nest this further: the `disease` can be specified as an extra column of the metadata matrix if we wanted to run the analysis with all `coad`+`luad`+`prad`+`brca` `assay`s together.
+
+
+```{r diff_meth_alternative}
+
+ids_coad <- data.frame(patient  = as.factor(strtrim(colnames(assay(met.coad)), 12)),
+                       status = sapply(strsplit(colnames(assay(met.coad)), '-'),
+                                       function(x) return(strtrim(x[4], 2))),
+                       disease = 'coad')
+
+rownames(ids_coad) <- colnames(assay(met.coad))
+
+## makeContrasts is picky with `-` as levels
+ids_coad$patient <- make.names(as.factor(gsub( '-', '_', ids_coad$patient )))
+table(ids_coad)
+
+design_alt <- model.matrix(  ~ 0+ status + status:patient, ids_coad)
+
+fit_alt <- lmFit(apply(assay(met.coad), 2, beta2m), design_alt)
+
+colnames(design_alt)
+
+## this breaks here as the make.names is not resolving the odd TCGA naming, @todo @imallona fix
+
+## contrasts_alt <- makeContrasts(tumorvsnormal = status11 - status01,
+##                                     levels = make.names(colnames(design_alt)))
+
+## fit2_alt <- contrasts.fit(fit_alt, contrasts_alt)
+## efit_alt <- eBayes(fit2_alt)
+## head(topTable(efit_alt))
+
+```
 
 #### Comparación de los 3 paquetes de análisis
 A continuación se comparan el número de probes significativas en cada uno de los métodos empleados:
