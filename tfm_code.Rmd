@@ -32,6 +32,7 @@ BiocManager::install("ABC.RAP", version = "3.8")
 ```
 
 ```{r Rpackages, include=FALSE}
+library(ggplot2)
 suppressPackageStartupMessages(library(knitr))
 suppressPackageStartupMessages(library(curatedTCGAData))
 #devtools::install_github('BioinformaticsFMRP/TCGAbiolinks')
@@ -455,7 +456,17 @@ clinic_luad <- GDCquery_clinic(luad, type = "clinical", save.csv = FALSE)
 ```
 
 
-```{r}
+Commented out as it raises
+
+```
+> luad.map <- sampleMap(luad)
+Error in (function (classes, fdef, mtable)  :
+  unable to find an inherited method for function ‘sampleMap’ for signature ‘"character"’
+
+
+```
+
+```{r, eval = FALSE}
 ## Check if the mutation and methylation barcodes match
 ## LUAD with curatedTCGAData
 ## luad.map<- sampleMap(luad)
@@ -554,7 +565,7 @@ densityPlot(assay(met.prad), sampGroups =colData(met.prad)$definition, legend = 
 
 
 
-```{r qplot.met.coad}
+```{r qplot.met.coad, eval = FALSE}
 # DISTRIBUCIÓN EN COAD
 
 qplot(assay(met.coad)[ , grepl( "01A" , colnames( assay(met.coad) ) ) ] , fill=I(rgb(0.1,0.2,0.4,0.6)), main = "Tejido canceroso COAD", xlab = "Beta-values", ylab = "recuento", bins = 50)
@@ -563,7 +574,7 @@ qplot(assay(met.coad)[ , grepl( "11A" , colnames( assay(met.coad) ) ) ] , fill=I
 
 En las distribución de los beta values de COAD se aprecian muchos valores cercanos a 0.50, posible razón por la que al calcular la media entre ambos tipos de muestras y estudiar la significación no se aprecien diferencias significativas el grado de metilación. 
 
-```{r qplot.met.brca}
+```{r qplot.met.brca, eval = FALSE}
 # DISTRIBUCIÓN EN BRCA
 
 qplot(assay(met.brca)[ , grepl( "01A" , colnames( assay(met.brca) ) ) ] , fill=I(rgb(0.72, 0.201, 0.176,0.6)), main = "Tejido canceroso BRCA", xlab = "Beta-values", ylab = "recuento", bins = 50, ylim = c(0, 50000))
@@ -572,7 +583,7 @@ qplot(assay(met.brca)[ , grepl( "11A" , colnames( assay(met.brca) ) ) ] , fill=I
 
 Comparando los valores beta gráficamente de ambos tipos de tejido, apenas hay diferencias entre tejido normal y canceroso en BRCA.
 
-```{r qplot.met.prad}
+```{r qplot.met.prad, eval = FALSE}
 # DISTRIBUCIÓN EN PRAD
 
 qplot(assay(met.prad)[ , grepl( "01A" , colnames( assay(met.prad) ) ) ] , fill=I(rgb(0.1,0.2,0.4,0.6)), main = "Tejido canceroso PRAD", xlab = "Beta-values", ylab = "recuento", bins = 50)
@@ -583,7 +594,7 @@ En PRAD parece que aumenta los valores beta en las muestras de tejido canceroso 
 
 
 
-```{r qplot.met.luad}
+```{r qplot.met.luad, eval = FALSE}
 # DISTRIBUCIÓN EN LUAD
 
 qplot(assay(met.luad)[ , grepl( "01A" , colnames( assay(met.luad) ) ) ] , fill=I(rgb(0.1,0.2,0.4,0.6)), main = "Tejido canceroso LUAD", xlab = "Beta-values", ylab = "recuento", bins = 50)
@@ -672,7 +683,7 @@ met.coad <- TCGAanalyze_DMR(met.coad,
 
 
 ```{r dmr.sig.coad}
-dmr_coad <- read.csv("DMR_results_definition_Primary.solid.Tumor_Solid.Tissue.Normal_pcut_0.01_meancut_0.25")
+dmr_coad <- read.csv("DMR_results_definition_Primary.solid.Tumor_Solid.Tissue.Normal_pcut_0.01_meancut_0.25.csv")
 #"DMR_results_COAD_definition_Primary.solid.Tumor_Solid.Tissue.Normal_pcut_0.01_meancut_0.25.csv"
 
 ## exploraci?n de los datos de metilaci?n diferencial entre muestras normales y tumorales
@@ -705,7 +716,7 @@ met.brca <-TCGAanalyze_DMR(met.brca,
 ```
 
 ```{r dmr.sig.brca}
-dmr_brca <- read.csv("DMR_results_definition_Primary.solid.Tumor_Solid.Tissue.Normal_pcut_0.01_meancut_0.25")
+dmr_brca <- read.csv("DMR_results_definition_Primary.solid.Tumor_Solid.Tissue.Normal_pcut_0.01_meancut_0.25.csv")
 #"DMR_results_BRCA_definition_Primary.solid.Tumor_Solid.Tissue.Normal_pcut_0.01_meancut_0.25.csv"
 
 ## exploraci?n de los datos de metilaci?n diferencial entre muestras normales y tumorales
@@ -736,7 +747,7 @@ met.prad <-TCGAanalyze_DMR(met.prad,
 ```
 
 ```{r dmr.sig.prad}
-dmr_prad <- read.csv("DMR_results_definition_Primary.solid.Tumor_Solid.Tissue.Normal_pcut_0.01_meancut_0.25")
+dmr_prad <- read.csv("DMR_results_definition_Primary.solid.Tumor_Solid.Tissue.Normal_pcut_0.01_meancut_0.25.csv")
 #"DMR_results_PRAD_definition_Primary.solid.Tumor_Solid.Tissue.Normal_pcut_0.01_meancut_0.25.csv"
 
 ## exploraci?n de los datos de metilaci?n diferencial entre muestras normales y tumorales
@@ -766,7 +777,7 @@ met.luad <-TCGAanalyze_DMR(met.luad,
 ```
 
 ```{r dmr.sig.luad}
-dmr_luad <- read.csv("DMR_results_definition_Primary.solid.Tumor_Solid.Tissue.Normal_pcut_0.01_meancut_0.25")
+dmr_luad <- read.csv("DMR_results_definition_Primary.solid.Tumor_Solid.Tissue.Normal_pcut_0.01_meancut_0.25.csv")
 #"DMR_results_LUAD_definition_Primary.solid.Tumor_Solid.Tissue.Normal_pcut_0.01_meancut_0.25.csv"
 
 ## exploraci?n de los datos de metilaci?n diferencial entre muestras normales y tumorales
