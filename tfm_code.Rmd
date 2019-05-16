@@ -891,7 +891,7 @@ starburst.brca_2 <- TCGAvisualize_starburst(met.brca,
                                      names = FALSE)
 # Colaprico et al. 2015: logFC.cut >=3
 
-dim(starburst.brca)
+# dim(starburst.brca)
 table(starburst.brca_2['starburst.status'])
 ```
 
