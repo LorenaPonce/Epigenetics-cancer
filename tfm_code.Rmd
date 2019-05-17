@@ -1065,7 +1065,14 @@ nrow(ttest2.prad)
 4. LUAD
 
 
-```{r ttest.abc.luad}
+(imallona commented out because)
+```label: ttest.abc.luad
+Quitting from lines 1069-1073 (tfm_code.Rmd)
+Error in if (stderr < 10 * .Machine$double.eps * max(abs(mx), abs(my))) stop("data are essentially constant") :
+  missing value where TRUE/FALSE needed
+```
+
+```{r ttest.abc.luad, eval = FALSE}
 ttest.luad <- ttest_data(assay(met.luad), 1, 28, 29, 56, 1e-2)
 nrow(ttest.luad)
 ttest2.luad <- ttest_data(Mval.luad, 1, 28, 29, 56, 1e-2)
