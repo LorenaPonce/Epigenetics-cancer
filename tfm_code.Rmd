@@ -47,6 +47,7 @@ suppressPackageStartupMessages(library(stringr))
 suppressPackageStartupMessages(library("maftools"))
 library(ComplexHeatmap)
 require(limma)
+library(ABC.RAP)
 ```
 
 ```{r constants, cache=FALSE}
