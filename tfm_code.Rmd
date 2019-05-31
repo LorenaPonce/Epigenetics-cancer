@@ -1600,6 +1600,52 @@ for (row in 1:nrow(Mval.coad)){
 ```
 
 
+
+```{r deltabeta_variant}
+
+## building an index with whether normal or tumor, and the patient id
+## with first the old data
+idx_met_coad <- data.frame(id = colnames(assay(met.coad)),
+                           status = sapply(strsplit(colnames(assay(met.coad)), '-'),
+                                           function(x) return(strtrim(x[4], 2))),
+                           patient = strtrim(colnames(assay(met.coad)), 12),
+                           stringsAsFactors = FALSE)
+
+## and second the latest data
+idx_mval_coad <- data.frame(id = colnames(Mval.coad),
+                            status = sapply(strsplit(colnames(Mval.coad), '-'),
+                                            function(x) return(strtrim(x[4], 2))),
+                            patient = strtrim(colnames(Mval.coad), 12),
+                            stringsAsFactors = FALSE)
+
+table(idx_met_coad$patient)
+table(idx_mval_coad$patient)
+
+## they are the same, let's get the old data and directly subtract,
+## as the samples are beautifully ordered already
+all(idx_met_coad[idx_met_coad$status == '01', 'patient'] ==
+    idx_met_coad[idx_met_coad$status == '11', 'patient'])
+
+## so to get delta tumor vs normal it's subtracting the matrix of statuses `01` to
+##  those with stuses `11`
+suggested_delta <- assay(met.coad)[,idx_met_coad[idx_met_coad$status == '01', 'id']] -
+    assay(met.coad)[,idx_met_coad[idx_met_coad$status == '11', 'id']]
+
+## trivial tests on the first element, first cg
+assay(met.coad)[1,'TCGA-AA-3713-01A-21D-1721-05'] -
+    assay(met.coad)[1, 'TCGA-AA-3713-11A-01D-1721-05'] == suggested_delta[1,1]
+
+## and the third cpg, this patient
+assay(met.coad)[10,'TCGA-AZ-6599-01A-11D-1772-05'] -
+    assay(met.coad)[10, 'TCGA-AZ-6599-11A-01D-1772-05'] ==
+    suggested_delta[10,'TCGA-AZ-6599-01A-11D-1772-05']
+
+## still is dirty to have the suggested_delta colnames as if they were tumors,
+##  let's rename it
+colnames(suggested_delta) <- sprintf('%s_delta_tn', strtrim(colnames(suggested_delta), 12))
+
+```
+
 # Save image
 
 ```{r}
